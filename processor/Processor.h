@@ -3,9 +3,14 @@
 
 #include "Result.h"
 
-class Processor {
+class Processor {	
+
+private:
+	bool debug;
 public:
 	virtual Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* label) = 0;
+	void setDebug(bool debug);
+	bool isDebugEnabled();
 };
 
 #endif

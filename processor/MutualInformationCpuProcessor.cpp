@@ -17,40 +17,55 @@ Result* MutualInformationCpuProcessor::calculate(int numOfSamples, int numOfFeat
 	
 	
 	Result* testResult = new Result;
-	testResult->scores=new float[numOfFeatures];
+	testResult->scores=new double[numOfFeatures];
 	
-	double labelArray[numOfFeatures];	
-	for(int i=0;i<numOfFeatures;i++)
+	double labelArray[numOfSamples];	
+	for(int i=0;i<numOfSamples;i++)
 	{
 		labelArray[i]=labels[i];
 		//std::cout<<labelArray[i];
 	}
 	std::cout<<std::endl;	
+
+	int label0Size = 0;
+	int label1Size = 0;
+	
+	for(int j=0; j<numOfSamples; j++)
+	{
+		if(labels[j]==0){
+			label0Size+=1;		
+		}else if(labels[j]==1){
+			label1Size+=1;
+		}
+	}
 	
 	for(int i=0;i<numOfFeatures;i++)
 	{
 		if(featureMask[i] != true){
 			continue;
 		}
+				
+		double label0Array[label0Size];
+		double label1Array[label1Size];
+		int label0Index=0;
+		int label1Index=0;
 		
-						
-		double featureArray[numOfSamples];
-			
 		for(int j=0; j<numOfSamples; j++)
 		{
 			int index = j*numOfFeatures + i;
-			featureArray[j] = sampleTimesFeature[index];
-			//std::cout<<featureArray[j];
-		}
-		
-		
+			if(labels[j]==0){
+				label0Array[label0Index]=sampleTimesFeature[index];
+				label0Index+=1;
+			}else if(labels[j]==1){
+				label1Array[label1Index]=sampleTimesFeature[index];
+				label1Index+=1;
+			}
+		}		
 		
 				
-		double score = this->calculateMutualInformation(featureArray, labelArray, numOfSamples);
-		//double score = this->calculate_Pvalue(label0Array, label0Size, label1Array, label1Size);
+		double score = this->calculateMutualInformation(label0Array, label1Array, label0Size);		
 		testResult->scores[i]=score;
-		//std::cout<<"Feature "<<i<<":"<<score<<std::endl;	
-		//break;	
+		std::cout<<"Feature "<<i<<":"<<score<<std::endl;
 	}
 	
 	std::cout<<std::endl;
@@ -88,7 +103,7 @@ double MutualInformationCpuProcessor::calculateMutualInformation(double *dataVec
     }
   }
   
-  mutualInformation /= log(2.0);
+  //mutualInformation /= log(2.0);
   
   FREE_FUNC(state.firstProbabilityVector);
   state.firstProbabilityVector = NULL;

@@ -4,6 +4,31 @@
 #include <math.h>
 #include <iostream>
 
+Result* PValueCpuProcessor::fastCalculate(char** label0Array, char** label1Array, int label0Size, int label1Size, int numOfSamples, int numOfFeatures, bool* featureMask)
+{
+	Timer t1("Processing");
+	t1.start();
+	
+	Result* testResult = new Result;
+	testResult->scores=new double[numOfFeatures];
+	
+	for(int i=0;i<numOfFeatures;i++){
+		if(featureMask[i] != true){			
+			continue;
+		}
+		double score = this->calculate_Pvalue(label1Array[i], label1Size, label0Array[i], label0Size);
+		testResult->scores[i]=score;
+		std::cout<<"Feature "<<i<<":"<<score<<std::endl;		
+	}
+	t1.stop();
+	
+	testResult->startTime=t1.getStartTime();
+	testResult->endTime=t1.getStopTime();
+	return testResult;	
+	
+}
+
+/*
 
 Result* PValueCpuProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels)
 {
@@ -12,72 +37,49 @@ Result* PValueCpuProcessor::calculate(int numOfSamples, int numOfFeatures, char*
 	
 	
 	Result* testResult = new Result;
-	testResult->scores=new float[numOfFeatures];
+	testResult->scores=new double[numOfFeatures];
 	
-	int labelArray[numOfFeatures];	
-	for(int i=0;i<numOfFeatures;i++)
-	{
-		labelArray[i]=labels[i];
-		//std::cout<<labelArray[i];
-	}
 	std::cout<<std::endl;	
+	
+	int label0Size = 0;
+	int label1Size = 0;
+	
+	for(int j=0; j<numOfSamples; j++)
+	{			
+		if((int)labels[j]==0){
+			label0Size+=1;		
+		}else if((int)labels[j]==1){
+			label1Size+=1;
+		}
+	}
 	
 	for(int i=0;i<numOfFeatures;i++)
 	{
 		if(featureMask[i] != true){
 			continue;
 		}
-		
 						
-		int featureArray[numOfSamples];
-		/**
-		int label0Size=0;
-		int label1Size=0;
-		for(int j=0; j<numOfSamples; j++)
-		{
-			if (labelArray[j] == 0)
-			{
-				label0Size+=1;
-			}else if(labelArray[j] == 1){
-				label1Size+=1;
-			}			
-		}
-		
-		int label0Array[label0Size];
-		int label1Array[label1Size];
-		
+		double label0Array[label0Size];
+		double label1Array[label1Size];
 		int label0Index=0;
 		int label1Index=0;
-		
-		for(int j=0; j<numOfSamples; j++)
-		{
-			int index = j*numOfFeatures + i;
-			if (labelArray[j] == 0)
-			{
-				label0Array[label0Index] = sampleTimesFeature[index];
-				label0Index+=1;
-			}else if(labelArray[j] == 1){
-				label1Array[label1Index] = sampleTimesFeature[index];
-				label1Index+=1;
-			}						
-		}
-		*/
-		
-		for(int j=0; j<numOfSamples; j++)
-		{
-			int index = j*numOfFeatures + i;
-			featureArray[j] = sampleTimesFeature[index];
-			//std::cout<<featureArray[j];
-		}
-		
-		
-		
 				
-		double score = this->calculate_Pvalue(featureArray, numOfSamples, labelArray, numOfSamples);
-		//double score = this->calculate_Pvalue(label0Array, label0Size, label1Array, label1Size);
+		for(int j=0; j<numOfSamples; j++)
+		{
+			int index = j*numOfFeatures + i;			
+			if(labels[j]==0){
+				label0Array[label0Index]=(int)sampleTimesFeature[index];
+				label0Index+=1;
+			}else if(labels[j]==1){
+				label1Array[label1Index]=(int)sampleTimesFeature[index];
+				label1Index+=1;
+			}
+		}
+				
+		double score = this->calculate_Pvalue(label1Array, label1Size, label0Array, label0Size);
+
 		testResult->scores[i]=score;
-		//std::cout<<"Feature "<<i<<":"<<score<<std::endl;	
-		//break;	
+		//std::cout<<"Feature "<<i<<":"<<score<<std::endl;		
 	}
 	
 	std::cout<<std::endl;
@@ -90,9 +92,9 @@ Result* PValueCpuProcessor::calculate(int numOfSamples, int numOfFeatures, char*
 	testResult->endTime=t1.getStopTime();
 	return testResult;
 }
+*/
 
-
-double PValueCpuProcessor::calculate_Pvalue(int *array1, int array1_size, int *array2, int array2_size) {
+double PValueCpuProcessor::calculate_Pvalue(char *array1, int array1_size, char *array2, int array2_size) {
 		
 	if (array1_size <= 1) {
 		return 1.0;
@@ -100,20 +102,24 @@ double PValueCpuProcessor::calculate_Pvalue(int *array1, int array1_size, int *a
 	if (array2_size <= 1) {
 		return 1.0;
 	}
-	double mean1 = 0.0, mean2 = 0.0;	
+	double mean1 = 0.0;
+	double mean2 = 0.0;	
 	
 	for (size_t x = 0; x < array1_size; x++) {
-		mean1 += array1[x];
+		mean1 += array1[x];	
 	}
+
 	for (size_t x = 0; x < array2_size; x++) {
 		mean2 += array2[x];
 	}
-	
+		
 	if (mean1 == mean2) {
 		return 1.0;
 	}
+
 	mean1 /= array1_size;
 	mean2 /= array2_size;
+	
 	double variance1 = 0.0, variance2 = 0.0;
 	
 	for (size_t x = 0; x < array1_size; x++) {
@@ -127,8 +133,9 @@ double PValueCpuProcessor::calculate_Pvalue(int *array1, int array1_size, int *a
 		return 1.0;
 	}
 	variance1 = variance1/(array1_size-1);
-	variance2 = variance2/(array2_size-1);
+	variance2 = variance2/(array2_size-1);	
 	const double WELCH_T_STATISTIC = (mean1-mean2)/sqrt(variance1/array1_size+variance2/array2_size);
+		
 	const double DEGREES_OF_FREEDOM = pow((variance1/array1_size+variance2/array2_size),2.0)//numerator
 	 /
 	(

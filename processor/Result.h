@@ -5,7 +5,7 @@ struct Result
 {
 	long startTime;
 	long endTime;
-	float* scores;
+	double* scores;
 };
 
 #endif

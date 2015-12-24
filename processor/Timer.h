@@ -9,11 +9,12 @@ class Timer
 	public:
        	Timer(const char *label);
 		void start();
-		void stop();
+		void stop();		
 		long getStartTime();
 		long getStopTime();
 		long getTimeSpent();	
 		void printTimeSpent();
+		void printTimeSinceStart();
 
 };
 
