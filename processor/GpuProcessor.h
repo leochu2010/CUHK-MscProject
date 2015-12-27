@@ -6,8 +6,11 @@ class GpuProcessor : public Processor
 {
 private:	
 	int numberOfThreadsPerBlock;	
+	
 	int numberOfDevice;
+	
 	bool activated;
+	
 public:	
 	GpuProcessor();
 	
@@ -18,8 +21,17 @@ public:
 	void setNumberOfDevice(int numberOfDevice);
 	
 	int getNumberOfDevice();
+		
+	Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);	
 	
-	Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* label);	
+	virtual Result* calculate(int numOfFeatures, 
+		char** label0ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
+		char** label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+		bool* featureMask);		
+	
+protected:
+
+	virtual int getNumberOfProcessingUnit();
 	
 };
 

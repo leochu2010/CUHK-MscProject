@@ -39,8 +39,21 @@ int GpuProcessor::getNumberOfDevice(){
 		}
 }
 
-Result* GpuProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* label){
+int GpuProcessor::getNumberOfProcessingUnit(){
+	return this->getNumberOfDevice();
+}
+
+Result* GpuProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels){
 	return new Result;
+}
+
+Result* GpuProcessor::calculate(int numOfFeatures, 
+		char** label0ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
+		char** label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+		bool* featureMask){
+			
+	return new Result;
+	
 }
 
 __global__ void VectorAdd(int *a, int *b, int *c, int n, int threadsPerBlock)

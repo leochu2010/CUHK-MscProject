@@ -19,11 +19,11 @@
 
 int getRank(float score, float* scoresAcsSorted,int numOfFeatures);
 
-void processFile(char* filepath, std::string algorithm, std::string processor, std::string outputFile, std::string outputFormat, std::string device, std::string thread, std::string feature, std::string test, std::string try_thread_from, std::string try_thread_to, std::string try_thread_step, std::string stdout);
+void processFile(char* filepath, std::string algorithm, std::string processor, std::string outputFile, std::string outputFormat, std::string device, std::string thread, std::string feature, std::string test, std::string try_thread_from, std::string try_thread_to, std::string try_thread_step, std::string stdout, std::string ordering);
 
 void processFolder(char* folderbase, std::string algorithm, std::string processor, std::string device, std::string thread, std::string feature);
 
-void exportResult(StructArff* arff, Result* result, char* filepath, std::string outputFile, std::string outputFormat, std::string algorithm);
+void exportResult(StructArff* arff, Result* result, char* filepath, std::string outputFile, std::string outputFormat, std::string algorithm, std::string ordering);
 
 void exportPerformance(long processingTime[], int testNum, std::string name, std::ofstream& output, std::string stdout);
 
@@ -39,6 +39,7 @@ int main(int argc, char* argv[]) {
 	std::string inputFolder="";
 	std::string outputFile="";
 	std::string outputFormat="tab_delimited";
+	std::string ordering="asc";
 	std::string device="0";
 	std::string thread="0";
 	std::string try_thread_from="0";
@@ -86,6 +87,9 @@ int main(int argc, char* argv[]) {
 			} else if(std::string(argv[i]) == "-output"){
 				outputFile = argv[i + 1];
 				i +=1;	
+			} else if(std::string(argv[i]) == "-ordering"){
+				ordering = argv[i + 1];
+				i +=1;
 			} else if(std::string(argv[i]) == "-stdout"){
 				stdout = argv[i + 1];
 				i +=1;	
@@ -121,7 +125,7 @@ int main(int argc, char* argv[]) {
 		char filepath[100];
 		memset(filepath,0,100);
 		strcat(filepath, inputFile.c_str());
-		processFile(filepath, algorithm, processor, outputFile, outputFormat, device, thread, feature, test, try_thread_from, try_thread_to, try_thread_step, stdout);
+		processFile(filepath, algorithm, processor, outputFile, outputFormat, device, thread, feature, test, try_thread_from, try_thread_to, try_thread_step, stdout, ordering);
 	}else if(inputFolder!=""){
 		char folderbase[100];
 		memset(folderbase, 0, 100);
@@ -155,7 +159,7 @@ Processor* getProcessor(std::string algorithm, std::string processor, std::strin
 	}
 }
 
-void processFile(char* filepath, std::string algorithm, std::string processor, std::string outputFile, std::string outputFormat, std::string device, std::string thread, std::string feature, std::string test, std::string try_thread_from, std::string try_thread_to, std::string try_thread_step, std::string stdout){
+void processFile(char* filepath, std::string algorithm, std::string processor, std::string outputFile, std::string outputFormat, std::string device, std::string thread, std::string feature, std::string test, std::string try_thread_from, std::string try_thread_to, std::string try_thread_step, std::string stdout, std::string ordering){
 		
 	SNPArffParser parser;
 	std::cout << filepath;
@@ -183,7 +187,7 @@ void processFile(char* filepath, std::string algorithm, std::string processor, s
 			featureMask[i]=false;
 		}
 	}
-		
+	
 	
 	int testNum = std::atoi(test.c_str());
 	
@@ -238,7 +242,7 @@ void processFile(char* filepath, std::string algorithm, std::string processor, s
 	} else {
 		Processor* myProcessor = getProcessor(algorithm, processor, device, thread);
 		Result* r = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);		
-		exportResult(arff, r, filepath, outputFile, outputFormat, algorithm);
+		exportResult(arff, r, filepath, outputFile, outputFormat, algorithm, ordering);
 	}
 }
 
@@ -301,7 +305,7 @@ void exportAvgPerformance(long processingTime[], int testNum, std::string name, 
 	}
 }
 
-void exportResult(StructArff* arff, Result* r, char* filepath, std::string outputFile, std::string outputFormat, std::string algorithm)
+void exportResult(StructArff* arff, Result* r, char* filepath, std::string outputFile, std::string outputFormat, std::string algorithm, std::string ordering)
 {
 	if(outputFormat == "tab_delimited"){
 		std::cout<<"output format="<<outputFormat<<std::endl;
@@ -312,16 +316,21 @@ void exportResult(StructArff* arff, Result* r, char* filepath, std::string outpu
 				
 		std::multimap<float,std::string> scoreFeatureMap;
 		
-		
-		for(int i=0; i<arff->FeatureCount; i++){
-			scoreFeatureMap.insert(std::pair<float, std::string>(r->scores[i], std::string(arff->SNPNames[i])));
+		if(ordering == "asc"){
+			for(int i=0; i<arff->FeatureCount; i++){
+				scoreFeatureMap.insert(std::pair<float, std::string>(r->scores[i], std::string(arff->SNPNames[i])));
+			}
+			
+			int rank = 1;
+			for(std::multimap<float,std::string>::iterator it = scoreFeatureMap.begin(); it!= scoreFeatureMap.end(); ++it){	
+				output<<(*it).second <<"\t"<<(*it).first<<"\t"<<rank<<std::endl;
+				rank+=1;
+			} 
+		}else if(ordering == "no"){
+			for(int i=0; i<arff->FeatureCount; i++){
+				output<<std::string(arff->SNPNames[i]) <<"\t"<<r->scores[i]<<std::endl;
+			}
 		}
-		
-		int rank = 1;
-		for(std::multimap<float,std::string>::iterator it = scoreFeatureMap.begin(); it!= scoreFeatureMap.end(); ++it){			
-			output<<(*it).second <<"\t"<<(*it).first<<"\t"<<rank<<std::endl;
-			rank+=1;
-		} 
 		
 		output.close();
 		
