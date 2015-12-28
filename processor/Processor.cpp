@@ -12,11 +12,11 @@ bool Processor::isDebugEnabled(){
 	return this->debug;
 }
 
-int Processor::getNumberOfProcessingUnit(){
+int Processor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
 	return 1;
 }
 
-int Processor::getFeaturesPerProcessingUnit(int numOfFeatures, int processingUnitCount){	
+int Processor::getFeaturesPerArray(int numOfFeatures, int processingUnitCount){	
 	return round((numOfFeatures/(float)processingUnitCount)+0.5f);	
 }
 
@@ -38,24 +38,26 @@ Result* Processor::calculate(int numOfSamples, int numOfFeatures, char* sampleFe
 		}
 	}
 	
-	//number of GPU / CPU 
-	int processingUnitCount = getNumberOfProcessingUnit();
+	//number of array
+	//device for GPU
+	//feature num for CPU 
+	int arrayNumbers = getNumberOfFeatureSizeTimesSampleSize2dArrays(numOfFeatures);
 			
-	int featuresPerProcessingUnit = getFeaturesPerProcessingUnit(numOfFeatures, processingUnitCount);
+	int featuresPerArray = getFeaturesPerArray(numOfFeatures, arrayNumbers);
 	
-	char **label0ProcessingUnitFeatureSizeTimesSampleSize2dArray = (char**)malloc(processingUnitCount * sizeof(char*));
-	char **label1ProcessingUnitFeatureSizeTimesSampleSize2dArray = (char**)malloc(processingUnitCount * sizeof(char*));
-	for(int processingUnitId =0; processingUnitId<processingUnitCount; processingUnitId++){
-		label0ProcessingUnitFeatureSizeTimesSampleSize2dArray[processingUnitId] = (char*)malloc(featuresPerProcessingUnit * numOfLabel0Samples * sizeof(char));
-		label1ProcessingUnitFeatureSizeTimesSampleSize2dArray[processingUnitId] = (char*)malloc(featuresPerProcessingUnit * numOfLabel1Samples * sizeof(char));				
+	char **label0FeatureSizeTimesSampleSize2dArray = (char**)malloc(arrayNumbers * sizeof(char*));
+	char **label1FeatureSizeTimesSampleSize2dArray = (char**)malloc(arrayNumbers * sizeof(char*));
+	for(int arrayId =0; arrayId<arrayNumbers; arrayId++){
+		label0FeatureSizeTimesSampleSize2dArray[arrayId] = (char*)malloc(featuresPerArray * numOfLabel0Samples * sizeof(char));
+		label1FeatureSizeTimesSampleSize2dArray[arrayId] = (char*)malloc(featuresPerArray * numOfLabel1Samples * sizeof(char));				
 	}
 	
 		
 	for(int i=0;i<numOfFeatures;i++){
-		int processingUnitId = i / featuresPerProcessingUnit;
-		int featureId = i % featuresPerProcessingUnit;
+		int arrayId = i / featuresPerArray;
+		int featureId = i % featuresPerArray;
 		
-		//std::cout<<"featuresPerProcessingUnit="<<featuresPerProcessingUnit<<", processingUnitId="<<processingUnitId<<", featureId="<<featureId<<std::endl;
+		//std::cout<<"featuresPerArray="<<featuresPerArray<<", arrayId="<<arrayId<<", featureId="<<featureId<<std::endl;
 		
 		if(featureMask[i] != true){
 			continue;
@@ -68,24 +70,34 @@ Result* Processor::calculate(int numOfSamples, int numOfFeatures, char* sampleFe
 		{
 			int index = j*numOfFeatures + i;			
 			if(labels[j]==0){
-				label0ProcessingUnitFeatureSizeTimesSampleSize2dArray[processingUnitId][featureId * numOfLabel0Samples + label0Index]=sampleFeatureMatrix[index];				
+				label0FeatureSizeTimesSampleSize2dArray[arrayId][featureId * numOfLabel0Samples + label0Index]=sampleFeatureMatrix[index];				
 				label0Index+=1;
 			}else if(labels[j]==1){
-				label1ProcessingUnitFeatureSizeTimesSampleSize2dArray[processingUnitId][featureId * numOfLabel1Samples + label1Index]=sampleFeatureMatrix[index];
+				label1FeatureSizeTimesSampleSize2dArray[arrayId][featureId * numOfLabel1Samples + label1Index]=sampleFeatureMatrix[index];
 				label1Index+=1;				
 			}
 		}				
 	}
 		
-	return calculate(numOfFeatures, 
-		label0ProcessingUnitFeatureSizeTimesSampleSize2dArray, numOfLabel0Samples,
-		label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, numOfLabel1Samples, 
+	Result* result = calculate(numOfFeatures, 
+		label0FeatureSizeTimesSampleSize2dArray, numOfLabel0Samples,
+		label1FeatureSizeTimesSampleSize2dArray, numOfLabel1Samples, 
 		featureMask);
+		
+	//free memory
+	for(int dev=0; dev<arrayNumbers; dev++) {
+		free(label0FeatureSizeTimesSampleSize2dArray[dev]);
+		free(label1FeatureSizeTimesSampleSize2dArray[dev]);		
+	}
+	free(label0FeatureSizeTimesSampleSize2dArray);
+	free(label1FeatureSizeTimesSampleSize2dArray);	
+		
+	return result;
 }
 
 Result* Processor::calculate(int numOfFeatures, 
-		char** label0ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-		char** label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+		char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
+		char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
 		bool* featureMask){
 		
 		std::cout << "no calculation"<<std::endl;

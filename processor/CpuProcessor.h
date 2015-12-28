@@ -6,12 +6,16 @@ class CpuProcessor : public Processor
 {
 	private:
 		int numberOfThreads;
+		
 	public:
 		void setNumberOfThreads(int numberOfThreads);
 		
-		Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);
+		Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);		
 		
-		virtual Result* fastCalculate(char** label0Array, char** label1Array, int label0Size, int label1Size, int numOfSamples, int numOfFeatures, bool* featureMask);
+	protected:
+	
+		virtual int getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures);
+		
 };
 
 #endif

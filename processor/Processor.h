@@ -16,8 +16,8 @@ public:
 	
 	//fast API without preprocessing
 	virtual Result* calculate(int numOfFeatures, 
-		char** label0ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-		char** label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+		char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
+		char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
 		bool* featureMask);
 		
 	void setDebug(bool debug);
@@ -26,10 +26,9 @@ public:
 	
 protected:
 
-	int getFeaturesPerProcessingUnit(int numOfFeatures, int processingUnitCount);
+	int getFeaturesPerArray(int numOfFeatures, int processingUnitCount);
 	
-	virtual int getNumberOfProcessingUnit();
-
+	virtual int getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures);	
 };
 
 #endif

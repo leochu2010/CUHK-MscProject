@@ -19,12 +19,13 @@ __global__ void calculate_Pvalue(
 	
 //implement API	
 Result* PValueGpuProcessor::calculate(int numOfFeatures, 
-	char** label0ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-	char** label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
+	char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
 	bool* featureMask){
 			
+	//get device and thread numbers	
 	int deviceCount = getNumberOfDevice();	
-	int featuresPerDevice = getFeaturesPerProcessingUnit(numOfFeatures, deviceCount);
+	int featuresPerDevice = getFeaturesPerArray(numOfFeatures, deviceCount);
 			
 	double score[deviceCount][featuresPerDevice];
 		
@@ -36,26 +37,26 @@ Result* PValueGpuProcessor::calculate(int numOfFeatures,
 	Timer totalProcessing("Total Processing");
 	totalProcessing.start();
 	
+	
+	//copy data from main memory to GPU	
 	char *d_label0Array[deviceCount];
 	char *d_label1Array[deviceCount];
 	double *d_score[deviceCount];
 		
-	std::cout << "featuresPerDevice:"<<featuresPerDevice<<std::endl;
-	
-	std::cout << "copy to GPU0"<<std::endl;
+	if(this->isDebugEnabled()){
+		std::cout << "copy to GPU"<<std::endl;
+	}
 	for(int dev=0; dev<deviceCount; dev++) {
 		cudaSetDevice(dev);
 				
 		cudaMalloc(&d_label0Array[dev],featuresPerDevice*numOfLabel0Samples*sizeof(char));
-		cudaMemcpy(d_label0Array[dev],label0ProcessingUnitFeatureSizeTimesSampleSize2dArray[dev],featuresPerDevice*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice);
+		cudaMemcpy(d_label0Array[dev],label0FeatureSizeTimesSampleSize2dArray[dev],featuresPerDevice*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice);
 		
 		cudaMalloc(&d_label1Array[dev],featuresPerDevice*numOfLabel1Samples*sizeof(char));
-		cudaMemcpy(d_label1Array[dev],label1ProcessingUnitFeatureSizeTimesSampleSize2dArray[dev],featuresPerDevice*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice);
+		cudaMemcpy(d_label1Array[dev],label1FeatureSizeTimesSampleSize2dArray[dev],featuresPerDevice*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice);
 				
 		cudaMalloc(&d_score[dev],featuresPerDevice*sizeof(double));		
-		cudaMemcpy(d_score[dev],score[dev],featuresPerDevice*sizeof(double),cudaMemcpyHostToDevice);
-		//std::cout<<"device"<<dev<<" ";
-		//t3.printTimeSinceStart();
+		cudaMemcpy(d_score[dev],score[dev],featuresPerDevice*sizeof(double),cudaMemcpyHostToDevice);		
 	}	
 	
 	int grid2d = (int)round(pow(featuresPerDevice,1/2.)+0.5f);
@@ -67,10 +68,8 @@ Result* PValueGpuProcessor::calculate(int numOfFeatures,
 	
 	const size_t N = 65535;
 	size_t NLoopPerThread = round(((float)N)/threadSize+0.5f);		
-	   
-	Timer t4 ("Processing Time");
-	t4.start();
-		
+	
+	//calculate	
 	for(size_t dev=0; dev<deviceCount; dev++) {
 		cudaSetDevice(dev);
 		calculate_Pvalue<<<gridSize, threadSize>>>(
@@ -80,24 +79,20 @@ Result* PValueGpuProcessor::calculate(int numOfFeatures,
 			dev, featuresPerDevice, 
 			numOfFeatures,
 			NLoopPerThread);
-		//std::cout<<"device"<<dev<<" ";
-		//t4.printTimeSinceStart();
 	}
 		
 	if(this->isDebugEnabled()){
 		std::cout<<"cudaPeekAtLastError:"<<cudaPeekAtLastError()<<std::endl;
 	}
 	cudaDeviceSynchronize();
-	t4.stop();
-		
-	Timer t5 ("Device to Host");
-	t5.start();
+	
+	//copy result from GPU to main memory
 	for(int dev=0; dev<deviceCount; dev++) {
 		cudaSetDevice(dev);
 		cudaMemcpy(score[dev], d_score[dev], featuresPerDevice*sizeof(double), cudaMemcpyDeviceToHost);
-	}
-	t5.stop();
+	}	
 	
+	//free cuda memory
 	for(int dev=0; dev<deviceCount; dev++) {
 		cudaFree(d_label1Array[dev]);
 		cudaFree(d_label0Array[dev]);
@@ -107,10 +102,9 @@ Result* PValueGpuProcessor::calculate(int numOfFeatures,
 	cudaFree(d_label0Array);
 	cudaFree(d_score);
 	
-	
 	cudaProfilerStop();
 	
-	//init result
+	//return result
 	Result* testResult = new Result;
 	testResult->scores=new double[numOfFeatures];
 	for(int dev=0; dev<deviceCount; dev++) {		
@@ -126,17 +120,14 @@ Result* PValueGpuProcessor::calculate(int numOfFeatures,
 	if(this->isDebugEnabled()){
 		std::cout<<std::endl;
 	}
-	
+		
 	totalProcessing.stop();	
 	testResult->startTime=totalProcessing.getStartTime();
 	testResult->endTime=totalProcessing.getStopTime();		
 	testResult->success=true;
+		
 	
-	
-	//free memory
-	
-	return testResult;
-	
+	return testResult;	
 }
 
 

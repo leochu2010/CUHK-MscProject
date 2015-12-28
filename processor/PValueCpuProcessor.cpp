@@ -4,30 +4,33 @@
 #include <math.h>
 #include <iostream>
 
-Result* PValueCpuProcessor::fastCalculate(char** label0Array, char** label1Array, int label0Size, int label1Size, int numOfSamples, int numOfFeatures, bool* featureMask)
-{
+Result* PValueCpuProcessor::calculate(int numOfFeatures, 
+	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
+	char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+	bool* featureMask){
+		
 	Timer t1("Processing");
-	t1.start();
-	
+	t1.start();		
+			
 	Result* testResult = new Result;
 	testResult->scores=new double[numOfFeatures];
 	
 	for(int i=0;i<numOfFeatures;i++){
 		if(featureMask[i] != true){			
 			continue;
-		}
-		double score = this->calculate_Pvalue(label1Array[i], label1Size, label0Array[i], label0Size);
+		}		
+		double score = this->calculate_Pvalue(label1FeatureSizeTimesSampleSize2dArray[i], numOfLabel1Samples, label0FeatureSizeTimesSampleSize2dArray[i], numOfLabel0Samples);
 		testResult->scores[i]=score;
 		std::cout<<"Feature "<<i<<":"<<score<<std::endl;		
 	}
 	t1.stop();
 	
+	testResult->success = true;
 	testResult->startTime=t1.getStartTime();
 	testResult->endTime=t1.getStopTime();
 	return testResult;	
-	
+		
 }
-
 /*
 
 Result* PValueCpuProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels)

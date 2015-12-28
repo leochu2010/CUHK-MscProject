@@ -39,7 +39,7 @@ int GpuProcessor::getNumberOfDevice(){
 		}
 }
 
-int GpuProcessor::getNumberOfProcessingUnit(){
+int GpuProcessor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
 	return this->getNumberOfDevice();
 }
 

@@ -19,4 +19,5 @@ clean:
 	rm -f *.o
 	rm -f *.gch
 	rm -f calculate
+	rm -f cal
 all: clean cpu gpu calculate

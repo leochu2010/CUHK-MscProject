@@ -25,13 +25,13 @@ public:
 	Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);	
 	
 	virtual Result* calculate(int numOfFeatures, 
-		char** label0ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-		char** label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+		char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
+		char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
 		bool* featureMask);		
 	
 protected:
 
-	virtual int getNumberOfProcessingUnit();
+	virtual int getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures);		
 	
 };
 
