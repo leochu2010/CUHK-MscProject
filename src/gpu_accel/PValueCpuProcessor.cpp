@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
+#include <boost/thread/thread.hpp>
+#include <boost/asio.hpp>
 
 Result* PValueCpuProcessor::calculate(int numOfFeatures, 
 	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
@@ -158,7 +160,7 @@ double PValueCpuProcessor::calculate_Pvalue(char *array1, int array1_size, char 
 	double return_value = ((h / 6.0) * ((pow(x,a-1))/(sqrt(1-x)) + 4.0 * sum1 + 2.0 * sum2))/(expl(lgammal(a)+0.57236494292470009-lgammal(a+0.5)));
 	
 	
-	if ((isfinite(return_value) == 0) || (return_value > 1.0)) {
+	if ((std::isfinite(return_value) == 0) || (return_value > 1.0)) {
 		return 1.0;
 	} else {
 		return return_value;
