@@ -4,10 +4,10 @@ NVCC=/usr/local/cuda/bin/nvcc
 NVCFLAGS=-ccbin /usr/local/gcc481/bin/g++ -c -I /usr/local/cuda/include -arch=sm_20 -std=c++11
 OBJS=
 cpu:
-	$(CC) -c -DCOMPILE_C gpu_accel/*.cpp gpu_accel/utils/*.cpp feature_selection/*.cpp $(CFLAGS) 
-	$(CC) -c -DCOMPILE_C gpu_accel/lib/MIToolbox/*.c $(CFLAGS)
+	$(CC) -c -DCOMPILE_C gpu_accel_alg/*.cpp gpu_accel_alg/utils/*.cpp feature_selection/*.cpp $(CFLAGS) 
+	$(CC) -c -DCOMPILE_C gpu_accel_alg/lib/MIToolbox/*.c $(CFLAGS)
 gpu:
-	$(NVCC) -c gpu_accel/*.cu $(NVCFLAGS) 
+	$(NVCC) -c gpu_accel_alg/*.cu $(NVCFLAGS) 
 	rm -f getgpuinfo.o
 main:
 	$(CC) -o calculate *.o -L /usr/local/cuda/lib64 -lcudart -lcuda $(CFLAGS)
