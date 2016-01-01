@@ -1,16 +1,16 @@
 CC=/usr/local/gcc481/bin/g++
 CFLAGS=-I /usr/local/cuda/include -std=c++11 -Wall
 NVCC=/usr/local/cuda/bin/nvcc
-NVCFLAGS=-ccbin /usr/local/gcc481/bin/g++ -c -I /usr/local/cuda/include -arch=sm_20
+NVCFLAGS=-ccbin /usr/local/gcc481/bin/g++ -c -I /usr/local/cuda/include -arch=sm_20 -std=c++11
 OBJS=
 cpu:
-	$(CC) -c -DCOMPILE_C gpu_accel/*.cpp feature_selection/*.cpp
-	$(CC) -c -DCOMPILE_C gpu_accel/*.c
+	$(CC) -c -DCOMPILE_C gpu_accel/*.cpp gpu_accel/utils/*.cpp feature_selection/*.cpp $(CFLAGS) 
+	$(CC) -c -DCOMPILE_C gpu_accel/lib/MIToolbox/*.c $(CFLAGS)
 gpu:
-	$(NVCC) -c gpu_accel/*.cu 
+	$(NVCC) -c gpu_accel/*.cu $(NVCFLAGS) 
 	rm -f getgpuinfo.o
-calculate:
-	$(CC) -o calculate *.o -L /usr/local/cuda/lib64 -lcudart -lcuda -lboost_system
+main:
+	$(CC) -o calculate *.o -L /usr/local/cuda/lib64 -lcudart -lcuda $(CFLAGS)
 	ln -s calculate cal
 	rm -f *.o
 getgpuinfo:
@@ -21,4 +21,4 @@ clean:
 	rm -f *.gch
 	rm -f calculate
 	rm -f cal
-all: clean cpu gpu calculate
+all: clean cpu gpu main

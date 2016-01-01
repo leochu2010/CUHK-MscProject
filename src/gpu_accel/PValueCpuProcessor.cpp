@@ -1,15 +1,41 @@
 #include "PValueCpuProcessor.h"
-#include "Timer.h"
+#include "utils/Timer.h"
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
-#include <boost/thread/thread.hpp>
-#include <boost/asio.hpp>
+#include <vector>
+#include <chrono>
+
+#include "lib/ThreadPool/ThreadPool.h"
+
+int myTask(){
+	return 1;
+}
 
 Result* PValueCpuProcessor::calculate(int numOfFeatures, 
 	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
 	char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
 	bool* featureMask){
+		
+	
+	    ThreadPool pool(4);
+    std::vector< std::future<int> > results;
+
+    for(int i = 0; i < 8; ++i) {
+        results.emplace_back(
+            pool.enqueue([i] {
+                std::cout << "hello " << i << std::endl;
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                std::cout << "world " << i << std::endl;
+                return i*i;
+            })
+        );
+    }
+
+    for(auto && result: results)
+        std::cout << result.get() << ' ';
+    std::cout << std::endl;
+	
 		
 	Timer t1("Processing");
 	t1.start();		
@@ -160,7 +186,7 @@ double PValueCpuProcessor::calculate_Pvalue(char *array1, int array1_size, char 
 	double return_value = ((h / 6.0) * ((pow(x,a-1))/(sqrt(1-x)) + 4.0 * sum1 + 2.0 * sum2))/(expl(lgammal(a)+0.57236494292470009-lgammal(a+0.5)));
 	
 	
-	if ((std::isfinite(return_value) == 0) || (return_value > 1.0)) {
+	if ((isfinite(return_value) == 0) || (return_value > 1.0)) {
 		return 1.0;
 	} else {
 		return return_value;

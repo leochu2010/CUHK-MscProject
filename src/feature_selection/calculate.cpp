@@ -4,11 +4,10 @@
 #include "../gpu_accel/CpuProcessor.h"
 #include "../gpu_accel/Processor.h"
 #include "../gpu_accel/GpuProcessor.h"
-#include "../gpu_accel/Constant.h"
-#include "../gpu_accel/Timer.h"
+#include "Constant.h"
 #include <iostream>
-#include "../gpu_accel/SNPArffParser.h"
-#include "../gpu_accel/StructArff.h"
+#include "SNPArffParser.h"
+#include "StructArff.h"
 #include <algorithm>
 #include <fstream>
 #include <string> 

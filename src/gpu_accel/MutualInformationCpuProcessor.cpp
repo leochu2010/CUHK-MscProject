@@ -1,13 +1,13 @@
 #include "MutualInformationCpuProcessor.h"
-#include "Timer.h"
+#include "utils/Timer.h"
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
-#include "MIToolbox.h"
-#include "ArrayOperations.h"
-#include "CalculateProbability.h"
-#include "Entropy.h"
-#include "MutualInformation.h"
+#include "lib/MIToolbox/MIToolbox.h"
+#include "lib/MIToolbox/ArrayOperations.h"
+#include "lib/MIToolbox/CalculateProbability.h"
+#include "lib/MIToolbox/Entropy.h"
+#include "lib/MIToolbox/MutualInformation.h"
 
 
 Result* MutualInformationCpuProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels)
