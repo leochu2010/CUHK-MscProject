@@ -1,21 +1,21 @@
-#include "GpuProcessor.h"
+#include "GpuAcceleratedProcessor.h"
 #include <device_launch_parameters.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <iostream>
 
-GpuProcessor::GpuProcessor(){
+GpuAcceleratedProcessor::GpuAcceleratedProcessor(){
 	this->numberOfThreadsPerBlock = 0;
 	this->numberOfDevice = 0;
 	this->activated = false;	
 }
 
-void GpuProcessor::setNumberOfThreadsPerBlock(int numberOfThreadsPerBlock)
+void GpuAcceleratedProcessor::setNumberOfThreadsPerBlock(int numberOfThreadsPerBlock)
 {
 		this->numberOfThreadsPerBlock = numberOfThreadsPerBlock;
 }
 
-int GpuProcessor::getNumberOfThreadsPerBlock()
+int GpuAcceleratedProcessor::getNumberOfThreadsPerBlock()
 {
 		if (this->numberOfThreadsPerBlock >0){
 			return numberOfThreadsPerBlock;
@@ -24,11 +24,11 @@ int GpuProcessor::getNumberOfThreadsPerBlock()
 		}
 }
 
-void GpuProcessor::setNumberOfDevice(int numberOfDevice){
+void GpuAcceleratedProcessor::setNumberOfDevice(int numberOfDevice){
 	this->numberOfDevice = numberOfDevice;
 }
 
-int GpuProcessor::getNumberOfDevice(){
+int GpuAcceleratedProcessor::getNumberOfDevice(){
 	
 	if (this->numberOfDevice >0){
 			return numberOfDevice;
@@ -39,20 +39,20 @@ int GpuProcessor::getNumberOfDevice(){
 		}
 }
 
-int GpuProcessor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
+int GpuAcceleratedProcessor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
 	return this->getNumberOfDevice();
 }
 
-Result* GpuProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels){
+Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels){
 	return new Result;
 }
 
-Result* GpuProcessor::calculate(int numOfFeatures, 
+Result* GpuAcceleratedProcessor::calculate(int numOfFeatures, 
 		char** label0ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
 		char** label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
 		bool* featureMask){
 		
-		//can do muti-threading here
+		//can do device muti-threading here
 			
 			
 	return new Result;

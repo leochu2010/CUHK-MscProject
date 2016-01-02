@@ -1,8 +1,8 @@
-#ifndef MIUTUALINFORMATIONCPUPROCESSOR_H
-#define MIUTUALINFORMATIONCPUPROCESSOR_H
+#ifndef SIMPLEMIUTUALINFORMATIONPROCESSOR_H
+#define SIMPLEMIUTUALINFORMATIONPROCESSOR_H
 
-#include "CpuProcessor.h"
-class MutualInformationCpuProcessor : public CpuProcessor 
+#include "SimpleProcessor.h"
+class SimpleMutualInformationProcessor : public SimpleProcessor 
 {
 	private:
 			double calculateMutualInformation(double *dataVector, double *targetVector, int vectorLength);			

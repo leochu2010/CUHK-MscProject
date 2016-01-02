@@ -1,9 +1,9 @@
-#include "../gpu_accel_alg/MutualInformationCpuProcessor.h"
-#include "../gpu_accel_alg/PValueCpuProcessor.h"
-#include "../gpu_accel_alg/PValueGpuProcessor.h"
-#include "../gpu_accel_alg/CpuProcessor.h"
+#include "../gpu_accel_alg/SimpleMutualInformationProcessor.h"
+#include "../gpu_accel_alg/SimplePValueProcessor.h"
+#include "../gpu_accel_alg/GpuAcceleratedPValueProcessor.h"
+#include "../gpu_accel_alg/SimpleProcessor.h"
 #include "../gpu_accel_alg/Processor.h"
-#include "../gpu_accel_alg/GpuProcessor.h"
+#include "../gpu_accel_alg/GpuAcceleratedProcessor.h"
 #include "Constant.h"
 #include <iostream>
 #include "SNPArffParser.h"
@@ -146,19 +146,19 @@ Processor* getProcessor(std::string algorithm, std::string processor, std::strin
 {
 	//std::cout<<"algorithm="<<algorithm<<", processor="<<processor<<", device="<<device<<", thread="<<thread<<std::endl;
 	if (algorithm == "mutual_info"){
-		return new MutualInformationCpuProcessor();
+		return new SimpleMutualInformationProcessor();
 	}else if(algorithm == "pvalue"){
 		if(processor == "cpu"){
-			return new PValueCpuProcessor();
+			return new SimplePValueProcessor();
 		}else if(processor == "gpu"){
-			GpuProcessor* gpuProcessor = new PValueGpuProcessor();
-			gpuProcessor->setNumberOfThreadsPerBlock(std::atoi(thread.c_str()));
-			gpuProcessor->setNumberOfDevice(std::atoi(device.c_str()));
-			return gpuProcessor;
+			GpuAcceleratedProcessor* gpuAcceleratedProcessor = new GpuAcceleratedPValueProcessor();
+			gpuAcceleratedProcessor->setNumberOfThreadsPerBlock(std::atoi(thread.c_str()));
+			gpuAcceleratedProcessor->setNumberOfDevice(std::atoi(device.c_str()));
+			return gpuAcceleratedProcessor;
 		}
 	}
 	//return sth
-	return new PValueCpuProcessor();
+	return new SimplePValueProcessor();
 }
 
 void processFile(char* filepath, std::string algorithm, std::string processor, std::string outputFile, std::string outputFormat, std::string device, std::string thread, std::string feature, std::string test, std::string try_thread_from, std::string try_thread_to, std::string try_thread_step, std::string stdout, std::string ordering){

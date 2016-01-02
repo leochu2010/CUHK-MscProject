@@ -1,4 +1,4 @@
-#include "ChiSquaredCpuProcessor.h"
+#include "SimpleChiSquaredProcessor.h"
 #include "utils/Timer.h"
 #include <stdio.h>
 #include <math.h>
@@ -10,7 +10,7 @@
 
 
 /* Numerical integration method */
-double ChiSquaredCpuProcessor::Simpson3_8(double a, double b, int N, double aa1)
+double SimpleChiSquaredProcessor::Simpson3_8(double a, double b, int N, double aa1)
 {
     int j;
     double l1;
@@ -26,7 +26,7 @@ double ChiSquaredCpuProcessor::Simpson3_8(double a, double b, int N, double aa1)
 }
  
 #define A 12
-double ChiSquaredCpuProcessor::Gamma_Spouge( double z )
+double SimpleChiSquaredProcessor::Gamma_Spouge( double z )
 {
     int k;
     static double cspace[A];
@@ -52,12 +52,12 @@ double ChiSquaredCpuProcessor::Gamma_Spouge( double z )
     return accum/z;
 }
 
-double ChiSquaredCpuProcessor::f0( double t, double aa1)
+double SimpleChiSquaredProcessor::f0( double t, double aa1)
 {
     return  pow(t, aa1)*exp(-t); 
 }
  
-double ChiSquaredCpuProcessor::GammaIncomplete_Q( double a, double x)
+double SimpleChiSquaredProcessor::GammaIncomplete_Q( double a, double x)
 {
     double y, h = 1.5e-2;  /* approximate integration step size */
 	double aa1;
@@ -72,7 +72,7 @@ double ChiSquaredCpuProcessor::GammaIncomplete_Q( double a, double x)
 }
 
 
-double ChiSquaredCpuProcessor::chi2UniformDistance( double *ds, int dslen)
+double SimpleChiSquaredProcessor::chi2UniformDistance( double *ds, int dslen)
 {
     double expected = 0.0;
     double sum = 0.0;
@@ -89,12 +89,12 @@ double ChiSquaredCpuProcessor::chi2UniformDistance( double *ds, int dslen)
     return sum/expected;
 }
  
-double ChiSquaredCpuProcessor::chi2Probability( int dof, double distance)
+double SimpleChiSquaredProcessor::chi2Probability( int dof, double distance)
 {
     return GammaIncomplete_Q( 0.5*dof, 0.5*distance);
 }
  
-int ChiSquaredCpuProcessor::chiIsUniform( double *dset, int dslen, double significance)
+int SimpleChiSquaredProcessor::chiIsUniform( double *dset, int dslen, double significance)
 {
     int dof = dslen -1;
     double dist = chi2UniformDistance( dset, dslen);
@@ -102,7 +102,7 @@ int ChiSquaredCpuProcessor::chiIsUniform( double *dset, int dslen, double signif
 }
 
 
-Result* ChiSquaredCpuProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels)
+Result* SimpleChiSquaredProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels)
 {
 	Timer t1 ("Total");
 	t1.start();

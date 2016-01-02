@@ -1,8 +1,8 @@
-#ifndef CPUPROCESSOR_H
-#define CPUPROCESSOR_H
+#ifndef SIMPLEPROCESSOR_H
+#define SIMPLEPROCESSOR_H
 
 #include "Processor.h"
-class CpuProcessor : public Processor 
+class SimpleProcessor : public Processor 
 {
 	private:
 		int numberOfThreads;

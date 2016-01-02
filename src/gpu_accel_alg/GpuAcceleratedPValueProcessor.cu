@@ -1,4 +1,4 @@
-#include "PValueGpuProcessor.h"
+#include "GpuAcceleratedPValueProcessor.h"
 #include "utils/Timer.h"
 #include <stdio.h>
 #include <math.h>
@@ -18,7 +18,7 @@ __global__ void calculate_Pvalue(
 	size_t NLoopPerThread);
 	
 //implement API	
-Result* PValueGpuProcessor::calculate(int numOfFeatures, 
+Result* GpuAcceleratedPValueProcessor::calculate(int numOfFeatures, 
 	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
 	char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
 	bool* featureMask){

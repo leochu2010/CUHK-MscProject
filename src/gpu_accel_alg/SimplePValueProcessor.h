@@ -1,8 +1,8 @@
-#ifndef PVALUECPUPROCESSOR_H
-#define PVALUECPUPROCESSOR_H
+#ifndef SIMPLEPVALUEPROCESSOR_H
+#define SIMPLEPVALUEPROCESSOR_H
 
-#include "CpuProcessor.h"
-class PValueCpuProcessor : public CpuProcessor 
+#include "SimpleProcessor.h"
+class SimplePValueProcessor : public SimpleProcessor 
 {
 	public:
 		

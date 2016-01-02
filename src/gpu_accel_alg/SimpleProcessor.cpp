@@ -1,19 +1,19 @@
-#include "CpuProcessor.h"
+#include "SimpleProcessor.h"
 #include <stdlib.h>
 #include <iostream>
 #include <unistd.h>
 
 
-void CpuProcessor::setNumberOfThreads(int numberOfThreads){
+void SimpleProcessor::setNumberOfThreads(int numberOfThreads){
     this->numberOfThreads = numberOfThreads;
 }
 
-int CpuProcessor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
+int SimpleProcessor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
 	return numOfFeatures;
 }
 
 
-int CpuProcessor::getNumberOfCores(){
+int SimpleProcessor::getNumberOfCores(){
 	int numCPU = 1;
 	
 	try{

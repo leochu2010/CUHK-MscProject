@@ -1,8 +1,8 @@
-#ifndef GPUPROCESSOR_H
-#define GPUPROCESSOR_H
+#ifndef GPUACCELERATEDPROCESSOR_H
+#define GPUACCELERATEDPROCESSOR_H
 
 #include "Processor.h"
-class GpuProcessor : public Processor 
+class GpuAcceleratedProcessor : public Processor 
 {
 private:	
 	int numberOfThreadsPerBlock;	
@@ -12,7 +12,7 @@ private:
 	bool activated;
 	
 public:	
-	GpuProcessor();
+	GpuAcceleratedProcessor();
 	
 	void setNumberOfThreadsPerBlock(int numberOfThreadsPerBlock);
 	

@@ -1,4 +1,4 @@
-#include "PValueCpuProcessor.h"
+#include "SimplePValueProcessor.h"
 #include "utils/Timer.h"
 #include <stdio.h>
 #include <math.h>
@@ -97,7 +97,7 @@ void calculate_Pvalue(void* arg) {
 	*pvalueArgs -> result = score;
 }
 
-Result* PValueCpuProcessor::calculate(int numOfFeatures, 
+Result* SimplePValueProcessor::calculate(int numOfFeatures, 
 	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
 	char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
 	bool* featureMask){

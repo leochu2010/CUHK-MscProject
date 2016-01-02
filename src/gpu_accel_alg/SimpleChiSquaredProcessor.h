@@ -1,8 +1,8 @@
-#ifndef CHISQUAREDCPUPROCESSOR_H
-#define CHISQUAREDCPUPROCESSOR_H
+#ifndef SIMPLECHISQUAREDPROCESSOR_H
+#define SIMPLECHISQUAREDPROCESSOR_H
 
-#include "CpuProcessor.h"
-class ChiSquaredCpuProcessor : public CpuProcessor 
+#include "SimpleProcessor.h"
+class SimpleChiSquaredProcessor : public SimpleProcessor 
 {
 	private:		
 		double Simpson3_8(double a, double b, int N, double aa1);

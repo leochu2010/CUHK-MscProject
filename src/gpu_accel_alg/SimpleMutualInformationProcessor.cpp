@@ -1,4 +1,4 @@
-#include "MutualInformationCpuProcessor.h"
+#include "SimpleMutualInformationProcessor.h"
 #include "utils/Timer.h"
 #include <stdio.h>
 #include <math.h>
@@ -10,7 +10,7 @@
 #include "lib/MIToolbox/MutualInformation.h"
 
 
-Result* MutualInformationCpuProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels)
+Result* SimpleMutualInformationProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels)
 {
 	Timer t1 ("Total");
 	t1.start();
@@ -81,7 +81,7 @@ Result* MutualInformationCpuProcessor::calculate(int numOfSamples, int numOfFeat
 	return testResult;
 }
 
-double MutualInformationCpuProcessor::calculateMutualInformation(double *dataVector, double *targetVector, int vectorLength)
+double SimpleMutualInformationProcessor::calculateMutualInformation(double *dataVector, double *targetVector, int vectorLength)
 {
   double mutualInformation = 0.0;
   int firstIndex,secondIndex;
