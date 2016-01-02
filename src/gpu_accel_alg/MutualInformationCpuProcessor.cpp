@@ -19,12 +19,14 @@ Result* MutualInformationCpuProcessor::calculate(int numOfSamples, int numOfFeat
 	Result* testResult = new Result;
 	testResult->scores=new double[numOfFeatures];
 	
+	/*
 	double labelArray[numOfSamples];	
 	for(int i=0;i<numOfSamples;i++)
 	{
 		labelArray[i]=labels[i];
 		//std::cout<<labelArray[i];
 	}
+	*/
 	std::cout<<std::endl;	
 
 	int label0Size = 0;

@@ -16,8 +16,8 @@ int Processor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
 	return 1;
 }
 
-int Processor::getFeaturesPerArray(int numOfFeatures, int processingUnitCount){	
-	return round((numOfFeatures/(float)processingUnitCount)+0.5f);	
+int Processor::getFeaturesPerArray(int numOfFeatures, int arrayNumbers){	
+	return round((numOfFeatures/(float)arrayNumbers)+0.4f);	
 }
 
 Result* Processor::calculate(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels){
@@ -43,7 +43,7 @@ Result* Processor::calculate(int numOfSamples, int numOfFeatures, char* sampleFe
 	//feature num for CPU 
 	int arrayNumbers = getNumberOfFeatureSizeTimesSampleSize2dArrays(numOfFeatures);
 			
-	int featuresPerArray = getFeaturesPerArray(numOfFeatures, arrayNumbers);
+	int featuresPerArray = getFeaturesPerArray(numOfFeatures, arrayNumbers);	
 	
 	char **label0FeatureSizeTimesSampleSize2dArray = (char**)malloc(arrayNumbers * sizeof(char*));
 	char **label1FeatureSizeTimesSampleSize2dArray = (char**)malloc(arrayNumbers * sizeof(char*));

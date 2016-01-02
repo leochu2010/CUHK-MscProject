@@ -12,8 +12,8 @@ int CpuProcessor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeature
 	return numOfFeatures;
 }
 
-/*
-int CpuProcessor::getNumberOfProcessingUnit(){
+
+int CpuProcessor::getNumberOfCores(){
 	int numCPU = 1;
 	
 	try{
@@ -25,4 +25,3 @@ int CpuProcessor::getNumberOfProcessingUnit(){
 	
 	return numCPU;
 }
-*/

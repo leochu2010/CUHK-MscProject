@@ -111,19 +111,22 @@ Result* ChiSquaredCpuProcessor::calculate(int numOfSamples, int numOfFeatures, c
 	Result* testResult = new Result;
 	testResult->scores=new double[numOfFeatures];
 	
+	/*
 	double labelArray[numOfSamples];	
 	for(int i=0;i<numOfSamples;i++)
 	{
 		labelArray[i]=labels[i];
 		//std::cout<<labelArray[i];
 	}
+	*/
 	
 	for(int i=0;i<numOfFeatures;i++)
 	{
 		if(featureMask[i] != true){
 			continue;
 		}
-								
+							
+		/*							
 		double featureArray[numOfSamples];
 		
 		for(int j=0; j<numOfSamples; j++)
@@ -132,9 +135,10 @@ Result* ChiSquaredCpuProcessor::calculate(int numOfSamples, int numOfFeatures, c
 			featureArray[j] = sampleTimesFeature[index];
 			//std::cout<<featureArray[j];
 		}
+		*/
 		
-		double *dsets[] = { featureArray, labelArray};
-		int dslens[] ={numOfSamples, numOfSamples};
+		//double *dsets[] = { featureArray, labelArray};
+		//int dslens[] ={numOfSamples, numOfSamples};
 		
 		
 				

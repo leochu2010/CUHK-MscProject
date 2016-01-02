@@ -3,132 +3,25 @@
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
-#include <vector>
-#include <chrono>
+#include <pthread.h>
+#include "lib/threadpool/ThreadPool.h"
 
-#include "lib/ThreadPool/ThreadPool.h"
+using namespace std;
 
-int myTask(){
-	return 1;
-}
-
-Result* PValueCpuProcessor::calculate(int numOfFeatures, 
-	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-	char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
-	bool* featureMask){
-		
-	
-	    ThreadPool pool(4);
-    std::vector< std::future<int> > results;
-
-    for(int i = 0; i < 8; ++i) {
-        results.emplace_back(
-            pool.enqueue([i] {
-                std::cout << "hello " << i << std::endl;
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                std::cout << "world " << i << std::endl;
-                return i*i;
-            })
-        );
-    }
-
-    for(auto && result: results)
-        std::cout << result.get() << ' ';
-    std::cout << std::endl;
-	
-		
-	Timer t1("Processing");
-	t1.start();		
-			
-	Result* testResult = new Result;
-	testResult->scores=new double[numOfFeatures];
-	
-	for(int i=0;i<numOfFeatures;i++){
-		if(featureMask[i] != true){			
-			continue;
-		}		
-		double score = this->calculate_Pvalue(label1FeatureSizeTimesSampleSize2dArray[i], numOfLabel1Samples, label0FeatureSizeTimesSampleSize2dArray[i], numOfLabel0Samples);
-		testResult->scores[i]=score;
-		std::cout<<"Feature "<<i<<":"<<score<<std::endl;		
-	}
-	t1.stop();
-	
-	testResult->success = true;
-	testResult->startTime=t1.getStartTime();
-	testResult->endTime=t1.getStopTime();
-	return testResult;	
-		
-}
-/*
-
-Result* PValueCpuProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels)
+struct PvalueArgs
 {
-	Timer t1 ("Total");
-	t1.start();
-	
-	
-	Result* testResult = new Result;
-	testResult->scores=new double[numOfFeatures];
-	
-	std::cout<<std::endl;	
-	
-	int label0Size = 0;
-	int label1Size = 0;
-	
-	for(int j=0; j<numOfSamples; j++)
-	{			
-		if((int)labels[j]==0){
-			label0Size+=1;		
-		}else if((int)labels[j]==1){
-			label1Size+=1;
-		}
-	}
-	
-	for(int i=0;i<numOfFeatures;i++)
-	{
-		if(featureMask[i] != true){
-			continue;
-		}
-						
-		double label0Array[label0Size];
-		double label1Array[label1Size];
-		int label0Index=0;
-		int label1Index=0;
-				
-		for(int j=0; j<numOfSamples; j++)
-		{
-			int index = j*numOfFeatures + i;			
-			if(labels[j]==0){
-				label0Array[label0Index]=(int)sampleTimesFeature[index];
-				label0Index+=1;
-			}else if(labels[j]==1){
-				label1Array[label1Index]=(int)sampleTimesFeature[index];
-				label1Index+=1;
-			}
-		}
-				
-		double score = this->calculate_Pvalue(label1Array, label1Size, label0Array, label0Size);
+	char *array1;
+	int array1_size;
+	char *array2;
+	int array2_size;	
+	int index;
+	double *result;
+};
 
-		testResult->scores[i]=score;
-		//std::cout<<"Feature "<<i<<":"<<score<<std::endl;		
-	}
-	
-	std::cout<<std::endl;
-		
-	t1.stop();
-	t1.printTimeSpent();
-	
-
-	testResult->startTime=t1.getStartTime();
-	testResult->endTime=t1.getStopTime();
-	return testResult;
-}
-*/
-
-double PValueCpuProcessor::calculate_Pvalue(char *array1, int array1_size, char *array2, int array2_size) {
-		
+double calculate_Pvalue(char *array1, int array1_size, char *array2, int array2_size) {	
+			
 	if (array1_size <= 1) {
-		return 1.0;
+		return 1.0;		
 	}
 	if (array2_size <= 1) {
 		return 1.0;
@@ -145,7 +38,7 @@ double PValueCpuProcessor::calculate_Pvalue(char *array1, int array1_size, char 
 	}
 		
 	if (mean1 == mean2) {
-		return 1.0;
+		return 1.0;		
 	}
 
 	mean1 /= array1_size;
@@ -184,11 +77,78 @@ double PValueCpuProcessor::calculate_Pvalue(char *array1, int array1_size, char 
 	}
 	
 	double return_value = ((h / 6.0) * ((pow(x,a-1))/(sqrt(1-x)) + 4.0 * sum1 + 2.0 * sum2))/(expl(lgammal(a)+0.57236494292470009-lgammal(a+0.5)));
-	
-	
+		
 	if ((isfinite(return_value) == 0) || (return_value > 1.0)) {
 		return 1.0;
 	} else {
-		return return_value;
+		return return_value;		
 	}
+}
+
+void calculate_Pvalue(void* arg) {	
+	PvalueArgs* pvalueArgs = (PvalueArgs*) arg;
+	
+	char *array1 = pvalueArgs->array1;
+	int array1_size  = pvalueArgs->array1_size;
+	char *array2  = pvalueArgs->array2;
+	int array2_size  = pvalueArgs->array2_size;
+	
+	double score = calculate_Pvalue(array1, array1_size, array2, array2_size);
+	*pvalueArgs -> result = score;
+}
+
+Result* PValueCpuProcessor::calculate(int numOfFeatures, 
+	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
+	char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+	bool* featureMask){
+
+	Timer t1("Processing");
+	t1.start();		
+	
+	int cores = getNumberOfCores();
+	
+	ThreadPool tp(2 * cores);
+	
+	int ret = tp.initialize_threadpool();
+	if (ret == -1) {
+		cerr << "Failed to initialize thread pool!" << endl;
+		return 0;
+	}
+
+	Result* testResult = new Result;
+	testResult->scores=new double[numOfFeatures];
+  
+	for(int i=0;i<numOfFeatures;i++){
+		PvalueArgs* pvalueArgs = new PvalueArgs;
+		
+		pvalueArgs->array1 = label1FeatureSizeTimesSampleSize2dArray[i];
+		pvalueArgs->array1_size = numOfLabel1Samples;
+		pvalueArgs->array2 = label0FeatureSizeTimesSampleSize2dArray[i];
+		pvalueArgs->array2_size = numOfLabel0Samples;
+		pvalueArgs->index = i;
+		pvalueArgs->result = &testResult->scores[i];
+		
+		Task* t = new Task(&calculate_Pvalue, (void*) pvalueArgs);
+		tp.add_task(t);
+	}
+
+	while(tp.hasTask()){
+		sleep(0.1);
+	}
+
+	tp.destroy_threadpool();
+	
+	for(int i=0;i<numOfFeatures;i++){		
+		cout<<"Feature "<<i<<":"<<testResult->scores[i]<<std::endl;		
+	}	
+	
+	t1.stop();	
+	
+	t1.printTimeSpent();
+	testResult->success = true;
+	testResult->startTime=t1.getStartTime();
+	testResult->endTime=t1.getStopTime();
+	
+	return testResult;	
+		
 }

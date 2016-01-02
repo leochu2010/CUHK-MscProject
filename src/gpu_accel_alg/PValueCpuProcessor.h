@@ -4,8 +4,6 @@
 #include "CpuProcessor.h"
 class PValueCpuProcessor : public CpuProcessor 
 {
-	private:
-		double calculate_Pvalue(char *array1, int array1_size, char *array2, int array2_size);
 	public:
 		
 		Result* calculate(int numOfFeatures, 

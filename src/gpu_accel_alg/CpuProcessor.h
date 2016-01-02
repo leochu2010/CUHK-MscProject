@@ -16,6 +16,8 @@ class CpuProcessor : public Processor
 	
 		virtual int getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures);
 		
+		int getNumberOfCores();
+		
 };
 
 #endif

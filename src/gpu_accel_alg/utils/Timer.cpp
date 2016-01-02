@@ -60,7 +60,7 @@ void Timer::printTimeSinceStart(){
 	if(sinceStart == 0){
 		printf("%s spent 0 ms\n",myLabel);
 	}else{
-		printf("%s spent %'.d ms since timer start\n",myLabel, sinceStart);	
+		printf("%s spent %'.ld ms since timer start\n",myLabel, sinceStart);	
 	}
 }
 
@@ -69,7 +69,7 @@ void Timer::printTimeSpent(){
 	if(getTimeSpent() == 0){
 		printf("%s spent 0 ms\n",myLabel);
 	}else{
-		printf("%s spent %'.d ms\n",myLabel, getTimeSpent());
+		printf("%s spent %'.ld ms\n",myLabel, getTimeSpent());
 	}
 }
 	
