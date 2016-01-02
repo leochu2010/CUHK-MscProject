@@ -138,9 +138,10 @@ Result* PValueCpuProcessor::calculate(int numOfFeatures,
 
 	tp.destroy_threadpool();
 	
+	/*
 	for(int i=0;i<numOfFeatures;i++){		
 		cout<<"Feature "<<i<<":"<<testResult->scores[i]<<std::endl;		
-	}	
+	}*/
 	
 	t1.stop();	
 	

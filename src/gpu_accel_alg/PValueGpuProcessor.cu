@@ -30,8 +30,8 @@ Result* PValueGpuProcessor::calculate(int numOfFeatures,
 	double score[deviceCount][featuresPerDevice];
 		
 	int threadSize = getNumberOfThreadsPerBlock();
-	size_t label0SizePerThread = round((numOfLabel0Samples/(float)(threadSize))+0.5f);
-	size_t label1SizePerThread = round((numOfLabel1Samples/(float)(threadSize))+0.5f);
+	size_t label0SizePerThread = ceil((numOfLabel0Samples/(float)(threadSize)));
+	size_t label1SizePerThread = ceil((numOfLabel1Samples/(float)(threadSize)));
 		
 	cudaProfilerStart();
 	Timer totalProcessing("Total Processing");
@@ -59,7 +59,7 @@ Result* PValueGpuProcessor::calculate(int numOfFeatures,
 		cudaMemcpy(d_score[dev],score[dev],featuresPerDevice*sizeof(double),cudaMemcpyHostToDevice);		
 	}	
 	
-	int grid2d = (int)round(pow(featuresPerDevice,1/2.)+0.5f);
+	int grid2d = (int)ceil(pow(featuresPerDevice,1/2.));
 	if(this->isDebugEnabled()){
 		std::cout<<"featuresPerDevice="<<featuresPerDevice<<",grid2d="<<grid2d<<",label0SizePerThread="<<label0SizePerThread<<",label1SizePerThread="<<label1SizePerThread<<std::endl;
 	}
@@ -67,7 +67,7 @@ Result* PValueGpuProcessor::calculate(int numOfFeatures,
 	dim3 gridSize(grid2d,grid2d);
 	
 	const size_t N = 65535;
-	size_t NLoopPerThread = round(((float)N)/threadSize+0.5f);		
+	size_t NLoopPerThread = ceil(((float)N)/threadSize);
 	
 	//calculate	
 	for(size_t dev=0; dev<deviceCount; dev++) {

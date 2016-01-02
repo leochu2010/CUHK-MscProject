@@ -51,18 +51,11 @@ Result* GpuProcessor::calculate(int numOfFeatures,
 		char** label0ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
 		char** label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
 		bool* featureMask){
+		
+		//can do muti-threading here
+			
 			
 	return new Result;
 	
 }
 
-__global__ void VectorAdd(int *a, int *b, int *c, int n, int threadsPerBlock)
-{
-	int i = blockIdx.x * threadsPerBlock + threadIdx.x;
-	//printf("blockIdx.x=%d, threadsPerBlock=%d, threadIdx.x=%d, i=%d \n", blockIdx.x, threadsPerBlock, threadIdx.x, i);
-
-	if (i < n){
-		c[i] = a[i] + b[i];
-	}
-
-}

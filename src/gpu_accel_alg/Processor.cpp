@@ -17,7 +17,7 @@ int Processor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
 }
 
 int Processor::getFeaturesPerArray(int numOfFeatures, int arrayNumbers){	
-	return round((numOfFeatures/(float)arrayNumbers)+0.4f);	
+	return ceil((numOfFeatures/(float)arrayNumbers));	
 }
 
 Result* Processor::calculate(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels){

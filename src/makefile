@@ -1,16 +1,18 @@
 CC=/usr/local/gcc481/bin/g++
-CFLAGS=-I /usr/local/cuda/include -std=c++11 -Wall
+CFLAGS=-I /usr/local/cuda/include -Wall -Wno-sign-compare
 NVCC=/usr/local/cuda/bin/nvcc
-NVCFLAGS=-ccbin /usr/local/gcc481/bin/g++ -c -I /usr/local/cuda/include -arch=sm_20 -std=c++11
+NVCFLAGS=-ccbin /usr/local/gcc481/bin/g++ -c -I /usr/local/cuda/include -arch=sm_20 
 OBJS=
 cpu:
 	$(CC) -c -DCOMPILE_C gpu_accel_alg/*.cpp gpu_accel_alg/utils/*.cpp feature_selection/*.cpp $(CFLAGS) 
-	$(CC) -c -DCOMPILE_C gpu_accel_alg/lib/MIToolbox/*.c $(CFLAGS)
+	$(CC) -c -DCOMPILE_C gpu_accel_alg/lib/MIToolbox/*.c 
+	$(CC) -c gpu_accel_alg/lib/threadpool/*.cpp $(CFLAGS)
+	rm -f threadpool_test.o
 gpu:
 	$(NVCC) -c gpu_accel_alg/*.cu $(NVCFLAGS) 
 	rm -f getgpuinfo.o
 main:
-	$(CC) -o calculate *.o -L /usr/local/cuda/lib64 -lcudart -lcuda $(CFLAGS)
+	$(CC) -o calculate *.o -L /usr/local/cuda/lib64 -lcudart -lcuda $(CFLAGS) 
 	ln -s calculate cal
 	rm -f *.o
 getgpuinfo:

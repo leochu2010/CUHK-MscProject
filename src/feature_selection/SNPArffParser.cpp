@@ -216,7 +216,7 @@ bool SNPArffParser::StartWith(char* basestring, char* headstring)
 {
 	if (strlen(basestring) < strlen(headstring))
 		return false;
-	for (int i = 0; i < strlen(headstring); i++)
+	for (unsigned int i = 0; i < strlen(headstring); i++)
 	{
 		if (basestring[i] != headstring[i])
 			return false;
@@ -228,7 +228,7 @@ bool SNPArffParser::EndWith(char* basestring, char* tailstring)
 {
 	if (strlen(basestring) < strlen(tailstring))
 		return false;
-	for (int i = 0; i < strlen(tailstring); i++)
+	for (unsigned int i = 0; i < strlen(tailstring); i++)
 	{
 		if (basestring[strlen(basestring) - 1 - i] != tailstring[strlen(tailstring) - 1 - i])
 			return false;
@@ -240,7 +240,7 @@ CharList* SNPArffParser::ExtractName(char* line)
 {
 	int pos1 = -1;
 	int pos2 = -1;
-	int index = 0;
+	unsigned int index = 0;
 	while (index<strlen(line))
 	{
 		if (line[index] == ' ')

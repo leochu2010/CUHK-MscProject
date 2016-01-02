@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
 	} 
 		
 	for (int i = 1; i < argc; i++) {		
-		if (i + 1 != argc) 
+		if (i + 1 != argc) {
 			if (std::string(argv[i]) == "-algorithm") {
 				algorithm = argv[i + 1];
 				
@@ -117,7 +117,8 @@ int main(int argc, char* argv[]) {
 			} else {
 				std::cout << "Not enough or invalid arguments, please try again.\n";                    
 				exit(0);
-		}            
+			}          
+		}
 	}
 	
 	if(inputFile!=""){
@@ -156,6 +157,8 @@ Processor* getProcessor(std::string algorithm, std::string processor, std::strin
 			return gpuProcessor;
 		}
 	}
+	//return sth
+	return new PValueCpuProcessor();
 }
 
 void processFile(char* filepath, std::string algorithm, std::string processor, std::string outputFile, std::string outputFormat, std::string device, std::string thread, std::string feature, std::string test, std::string try_thread_from, std::string try_thread_to, std::string try_thread_step, std::string stdout, std::string ordering){
@@ -221,9 +224,7 @@ void processFile(char* filepath, std::string algorithm, std::string processor, s
 				exportAvgPerformance(processingTime, testNum, name.str(), output, stdout);
 				if (stdout=="0"){
 					output<<"threads=[threads "<<t<<"];\n";	
-				}
-				
-				delete myProcessor;
+				}								
 			}		
 		}else{
 			Processor* myProcessor = getProcessor(algorithm, processor, device, thread);
@@ -371,12 +372,9 @@ void exportResult(StructArff* arff, Result* r, char* filepath, std::string outpu
 
 		int p1Ranks;
 		int p2Ranks;
-		int numOfFeatures;
-				
+						
 		scoreFile << "filepath="<<outputFile <<": scores=[";
-								
-		numOfFeatures = arff->FeatureCount;
-		
+				
 		float p1Score = r->scores[(arff->FeatureCount-2)];
 		float p2Score = r->scores[(arff->FeatureCount-1)];
 		p1Ranks = getRank(p1Score, sortScores, arff->FeatureCount);
@@ -563,5 +561,5 @@ int getRank(float score, float* scoresAcsOrder, int numOfFeatures){
 			return i;
 		}
 	}
-	
+	return -1;
 }
