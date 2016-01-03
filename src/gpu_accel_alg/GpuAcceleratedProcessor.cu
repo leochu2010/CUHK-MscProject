@@ -31,12 +31,12 @@ void GpuAcceleratedProcessor::setNumberOfDevice(int numberOfDevice){
 int GpuAcceleratedProcessor::getNumberOfDevice(){
 	
 	if (this->numberOfDevice >0){
-			return numberOfDevice;
-		}else{
-			int deviceCount = 0;
-			cudaGetDeviceCount(&deviceCount);
-			return deviceCount;
-		}
+		return numberOfDevice;
+	}else{
+		int deviceCount = 0;
+		cudaGetDeviceCount(&deviceCount);
+		return deviceCount;
+	}
 }
 
 int GpuAcceleratedProcessor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
@@ -52,8 +52,34 @@ Result* GpuAcceleratedProcessor::calculate(int numOfFeatures,
 		char** label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
 		bool* featureMask){
 		
-		//can do device muti-threading here
-			
+		/*
+		Step 1:
+			for each device
+				new thread for create stream
+		
+		Step 2:
+			create results array
+		
+		Step 3:
+			wait for all threads join 
+		
+		Step 4:
+			for each device	
+				new thread for asyn calculation
+					pass data, devId, stream for asyn calculate
+					pass resultArray for passing result back
+		
+		Step 5:
+			wait for all threads join
+		
+		Step 6:
+			return results;
+		*/
+		
+		
+		/*
+			don't forget try stream features in warp size in child classes
+		*/
 			
 	return new Result;
 	

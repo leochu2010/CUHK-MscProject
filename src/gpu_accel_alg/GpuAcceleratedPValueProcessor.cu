@@ -46,17 +46,25 @@ Result* GpuAcceleratedPValueProcessor::calculate(int numOfFeatures,
 	if(this->isDebugEnabled()){
 		std::cout << "copy to GPU"<<std::endl;
 	}
+	
+	cudaStream_t stream[deviceCount];
+	cudaError_t streamResult[deviceCount];
+	
 	for(int dev=0; dev<deviceCount; dev++) {
 		cudaSetDevice(dev);
 				
+		streamResult[dev] = cudaStreamCreate(&stream[dev]);	
 		cudaMalloc(&d_label0Array[dev],featuresPerDevice*numOfLabel0Samples*sizeof(char));
-		cudaMemcpy(d_label0Array[dev],label0FeatureSizeTimesSampleSize2dArray[dev],featuresPerDevice*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice);
-		
 		cudaMalloc(&d_label1Array[dev],featuresPerDevice*numOfLabel1Samples*sizeof(char));
-		cudaMemcpy(d_label1Array[dev],label1FeatureSizeTimesSampleSize2dArray[dev],featuresPerDevice*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice);
-				
 		cudaMalloc(&d_score[dev],featuresPerDevice*sizeof(double));		
-		cudaMemcpy(d_score[dev],score[dev],featuresPerDevice*sizeof(double),cudaMemcpyHostToDevice);		
+	}
+	
+	for(int dev=0; dev<deviceCount; dev++) {
+		cudaSetDevice(dev);		
+		
+		cudaMemcpyAsync(d_label0Array[dev],label0FeatureSizeTimesSampleSize2dArray[dev],featuresPerDevice*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice,stream[dev]);
+		cudaMemcpyAsync(d_label1Array[dev],label1FeatureSizeTimesSampleSize2dArray[dev],featuresPerDevice*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice,stream[dev]);
+		cudaMemcpyAsync(d_score[dev],score[dev],featuresPerDevice*sizeof(double),cudaMemcpyHostToDevice,stream[dev]);		
 	}	
 	
 	int grid2d = (int)ceil(pow(featuresPerDevice,1/2.));
@@ -89,7 +97,7 @@ Result* GpuAcceleratedPValueProcessor::calculate(int numOfFeatures,
 	//copy result from GPU to main memory
 	for(int dev=0; dev<deviceCount; dev++) {
 		cudaSetDevice(dev);
-		cudaMemcpy(score[dev], d_score[dev], featuresPerDevice*sizeof(double), cudaMemcpyDeviceToHost);
+		cudaMemcpyAsync(score[dev], d_score[dev], featuresPerDevice*sizeof(double), cudaMemcpyDeviceToHost,stream[dev]);
 	}	
 	
 	//free cuda memory
@@ -97,6 +105,7 @@ Result* GpuAcceleratedPValueProcessor::calculate(int numOfFeatures,
 		cudaFree(d_label1Array[dev]);
 		cudaFree(d_label0Array[dev]);
 		cudaFree(d_score[dev]);
+		streamResult[dev] = cudaStreamDestroy(stream[dev]);
 	}
 	cudaFree(d_label1Array);
 	cudaFree(d_label0Array);
