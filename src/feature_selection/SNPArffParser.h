@@ -3,12 +3,17 @@
 #include "StructArff.h"
 #include "stdio.h"
 #include "string.h"
+#include <string>
+
+using namespace std;
+
 class SNPArffParser
 {
 public:
 	SNPArffParser();
 	~SNPArffParser();
 	StructArff* ParseSNPArffFile(char* filepath);
+	StructArff* ParseSNPArffFile(std::string filepath);
 
 	void DisplayArffNames(StructArff* arffstruct);
 	void DisplayArffData(StructArff* arffstruct);

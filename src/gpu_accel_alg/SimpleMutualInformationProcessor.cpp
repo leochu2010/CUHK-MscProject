@@ -3,11 +3,11 @@
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
-#include "lib/MIToolbox/MIToolbox.h"
-#include "lib/MIToolbox/ArrayOperations.h"
-#include "lib/MIToolbox/CalculateProbability.h"
-#include "lib/MIToolbox/Entropy.h"
-#include "lib/MIToolbox/MutualInformation.h"
+#include "MIToolbox/MIToolbox.h"
+#include "MIToolbox/ArrayOperations.h"
+#include "MIToolbox/CalculateProbability.h"
+#include "MIToolbox/Entropy.h"
+#include "MIToolbox/MutualInformation.h"
 
 
 Result* SimpleMutualInformationProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels)

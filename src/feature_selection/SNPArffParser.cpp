@@ -1,7 +1,9 @@
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 
 #include "SNPArffParser.h"
+#include <string>
 
+using namespace std;
 
 
 SNPArffParser::SNPArffParser()
@@ -26,6 +28,13 @@ StructArff* SNPArffParser::ParseSNPArffFile(char* filepath)
 
 
 	return arffresult;
+}
+
+StructArff* SNPArffParser::ParseSNPArffFile(string filepath){
+	char charFilepath[200];
+	memset(charFilepath,0,200);
+	strcat(charFilepath, filepath.c_str());
+	return ParseSNPArffFile(charFilepath);
 }
 
 void SNPArffParser::DisplayArffNames(StructArff* arffstruct)

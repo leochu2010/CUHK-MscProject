@@ -4,8 +4,8 @@
 #include <unistd.h>
 
 
-void SimpleProcessor::setNumberOfThreads(int numberOfThreads){
-    this->numberOfThreads = numberOfThreads;
+void SimpleProcessor::setNumberOfCores(int numberOfCores){
+    this->numberOfCores = numberOfCores;
 }
 
 int SimpleProcessor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
@@ -14,14 +14,17 @@ int SimpleProcessor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeat
 
 
 int SimpleProcessor::getNumberOfCores(){
-	int numCPU = 1;
+	int numCPU = this->numberOfCores;
 	
-	try{
-		numCPU = sysconf(_SC_NPROCESSORS_ONLN);
-	}catch( const std::exception& e ) { // reference to the base of a polymorphic object
-		std::cout << e.what() <<std::endl; // information from length_error printed		
-		numCPU = 1;
+	if (numCPU > 0){
+		return numCPU;
+	}else{
+		try{
+			numCPU = sysconf(_SC_NPROCESSORS_ONLN);
+		}catch( const std::exception& e ) { // reference to the base of a polymorphic object
+			std::cout << e.what() <<std::endl; // information from length_error printed		
+			numCPU = 1;
+		}
+		return numCPU;
 	}
-	
-	return numCPU;
 }
