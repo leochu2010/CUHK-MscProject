@@ -5,10 +5,10 @@
 class SimpleProcessor : public Processor 
 {
 	private:
-		int numberOfThreads;
+		int numberOfCores;
 		
 	public:
-		void setNumberOfThreads(int numberOfThreads);
+		void setNumberOfCores(int numberOfCores);
 		
 		Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);		
 		

@@ -4,7 +4,7 @@
 #include <math.h>
 #include <iostream>
 #include <pthread.h>
-#include "lib/threadpool/ThreadPool.h"
+#include "threadpool/ThreadPool.h"
 
 using namespace std;
 
@@ -106,8 +106,12 @@ Result* SimplePValueProcessor::calculate(int numOfFeatures,
 	t1.start();		
 	
 	int cores = getNumberOfCores();
+	int poolThreads = 2 * cores;
+	if (cores == 1){
+		poolThreads = 1;
+	}
 	
-	ThreadPool tp(2 * cores);
+	ThreadPool tp(poolThreads);
 	
 	int ret = tp.initialize_threadpool();
 	if (ret == -1) {

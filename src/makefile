@@ -1,26 +1,40 @@
 CC=/usr/local/gcc481/bin/g++
-CFLAGS=-I /usr/local/cuda/include -Wall -Wno-sign-compare
+CFLAGS=-Wall -Wno-sign-compare
+
+LIB_SOURCES=gpu_accel_alg/*.cpp gpu_accel_alg/utils/*.cpp
+LIB_CUDA_SOURCES=gpu_accel_alg/*.cu
+LIB_INCLUDES=-I /usr/local/cuda/include -I includes
+
+APP_SOURCES=feature_selection/*.cpp
+APP_INCLUDES=-I includes -I . 
+
 NVCC=/usr/local/cuda/bin/nvcc
 NVCFLAGS=-ccbin /usr/local/gcc481/bin/g++ -c -I /usr/local/cuda/include -arch=sm_20 
 OBJS=
-cpu:
-	$(CC) -c -DCOMPILE_C gpu_accel_alg/*.cpp gpu_accel_alg/utils/*.cpp feature_selection/*.cpp $(CFLAGS) 
-	$(CC) -c -DCOMPILE_C gpu_accel_alg/lib/MIToolbox/*.c 
-	$(CC) -c gpu_accel_alg/lib/threadpool/*.cpp $(CFLAGS)
+
+GpuAccelAlgLib:
+	$(CC) -c -DCOMPILE_C includes/MIToolbox/*.c
+	$(CC) -c includes/threadpool/*.cpp $(CFLAGS)
 	rm -f threadpool_test.o
-gpu:
-	$(NVCC) -c gpu_accel_alg/*.cu $(NVCFLAGS) 
+
+GpuAccelAlg:
+	$(CC) -c -DCOMPILE_C $(LIB_SOURCES) $(CFLAGS) $(LIB_INCLUDES)
+	$(NVCC) -c $(LIB_CUDA_SOURCES) $(NVCFLAGS) 
 	rm -f getgpuinfo.o
-main:
-	$(CC) -o calculate *.o -L /usr/local/cuda/lib64 -lcudart -lcuda $(CFLAGS) 
+
+FeatureSelection:
+	$(CC) -c $(APP_SOURCES) $(CFLAGS) $(APP_INCLUDES)
+	$(CC) -o calculate *.o -L /usr/local/cuda/lib64 -lcudart -lcuda $(CFLAGS) $(APP_INCLUDES)
 	ln -s calculate cal
 	rm -f *.o
+
 getgpuinfo:
 	rm -f getgpuinfo 
 	$(NVCC) -o getgpuinfo getgpuinfo.cu -L /usr/local/cuda/lib64 -lcudart -lcuda
+
 clean:
 	rm -f *.o
 	rm -f *.gch
 	rm -f calculate
 	rm -f cal
-all: clean cpu gpu main
+all: clean GpuAccelAlgLib GpuAccelAlg FeatureSelection

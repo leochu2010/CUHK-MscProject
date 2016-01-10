@@ -1,9 +1,9 @@
-#include "../gpu_accel_alg/SimpleMutualInformationProcessor.h"
-#include "../gpu_accel_alg/SimplePValueProcessor.h"
-#include "../gpu_accel_alg/GpuAcceleratedPValueProcessor.h"
-#include "../gpu_accel_alg/SimpleProcessor.h"
-#include "../gpu_accel_alg/Processor.h"
-#include "../gpu_accel_alg/GpuAcceleratedProcessor.h"
+#include "gpu_accel_alg/SimpleMutualInformationProcessor.h"
+#include "gpu_accel_alg/SimplePValueProcessor.h"
+#include "gpu_accel_alg/GpuAcceleratedPValueProcessor.h"
+#include "gpu_accel_alg/SimpleProcessor.h"
+#include "gpu_accel_alg/Processor.h"
+#include "gpu_accel_alg/GpuAcceleratedProcessor.h"
 #include "Constant.h"
 #include <iostream>
 #include "SNPArffParser.h"
@@ -15,158 +15,198 @@
 #include <sys/time.h>  
 #include <sstream>
 #include <map>
+#include <vector>
+#include <algorithm>
+#include "tclap/CmdLine.h"
+
+using namespace TCLAP;
+using namespace std;
+
+struct ProcessorCommand{
+	string algorithm;
+	bool gpuAcceleration;
+	int cpuCore;
+	int gpuDevice;
+	int gpuBlockThread;
+};
+
+struct InputCommand{
+	string filePath;
+	string folderPath;
+	int numOfTest;
+	int features;
+};
+
+struct OutputCommand{
+	bool stdout;
+	string snpOrder;
+	string format;
+	string outputFile;
+	bool displayProcessingTime;
+};
+
+struct Command{
+	ProcessorCommand processorCommand;
+	InputCommand inputCommand;
+	OutputCommand outputCommand;
+};
 
 int getRank(float score, float* scoresAcsSorted,int numOfFeatures);
 
-void processFile(char* filepath, std::string algorithm, std::string processor, std::string outputFile, std::string outputFormat, std::string device, std::string thread, std::string feature, std::string test, std::string try_thread_from, std::string try_thread_to, std::string try_thread_step, std::string stdout, std::string ordering);
+void processFile(Command command);
 
-void processFolder(char* folderbase, std::string algorithm, std::string processor, std::string device, std::string thread, std::string feature);
+void processFolder(Command command);
 
-void exportResult(StructArff* arff, Result* result, char* filepath, std::string outputFile, std::string outputFormat, std::string algorithm, std::string ordering);
+void exportResult(StructArff* arff, Result* result, Command command);
 
-void exportPerformance(long processingTime[], int testNum, std::string name, std::ofstream& output, std::string stdout);
+void exportPerformance(long processingTime[], int testNum, string name, ofstream& output, OutputCommand outputCommand);
 
-void exportAvgPerformance(long processingTime[], int testNum, std::string name, std::ofstream& output, std::string stdout);
+void exportAvgPerformance(long processingTime[], int testNum, string name, ofstream& output, bool stdout);
 
-Processor* getProcessor(std::string algorithm, std::string processor, std::string device, std::string thread, std::string feature);
+Processor* getProcessor(ProcessorCommand processorCommand);
 
-int main(int argc, char* argv[]) {
 
-	std::string processor="cpu";
-	std::string algorithm;
-	std::string inputFile="";
-	std::string inputFolder="";
-	std::string outputFile="";
-	std::string outputFormat="tab_delimited";
-	std::string ordering="asc";
-	std::string device="0";
-	std::string thread="0";
-	std::string try_thread_from="0";
-	std::string try_thread_to="0";
-	std::string try_thread_step="10";
-	std::string feature="-1";
-	std::string test="0";
-	std::string stdout="0";
+Command parseCommand(int argc, char * argv[]){
+	// Wrap everything in a try block.  Do this every time,
+	// because exceptions will be thrown for problems.
+	try {
 
-	if(argc < 6)
-	{
-		std::cout << "Usage is -algorithm <algorithm> -processor <processor> (-file <input file> | -folder <input folder>)\n"; // Inform the user of how to use the program	
-		exit(0);
-	} 
+		// Define the command line object.
+		CmdLine cmd("Command description message. This is a long multi-line message meant to test line wrapping.  This is more text that doesn't really do anything besides take up lots of space that otherwise might be used for something real.  That should be enough, don't you think?", ' ', "0.9");
+
 		
-	for (int i = 1; i < argc; i++) {		
-		if (i + 1 != argc) {
-			if (std::string(argv[i]) == "-algorithm") {
-				algorithm = argv[i + 1];
+		vector<string> algorithmArgAllowed;
+		algorithmArgAllowed.push_back("pvalue");
+		algorithmArgAllowed.push_back("mutual_info");
+		algorithmArgAllowed.push_back("relief");
+		algorithmArgAllowed.push_back("t_test");	
+		ValuesConstraint<string> algorithmArgAllowedVals( algorithmArgAllowed );
+		ValueArg<string> algorithmArg("a","algorithm","Data Mining Algorithm",true,"default",&algorithmArgAllowedVals);
+		cmd.add(algorithmArg);
+			
+		ValueArg<int> cpuCoreArg("c","core","Number of CPU Core",false,0,NULL);
+		cmd.add(cpuCoreArg);
+		
+		ValueArg<int> gpuDeviceArg("d","device","Number of GPU Device",false,0,NULL);
+		cmd.add(gpuDeviceArg);
+		ValueArg<int> gpuBlockThreadArg("t","thread","Number of GPU Block Thread",false,1,NULL);
+		cmd.add(gpuBlockThreadArg);
+			
+		ValueArg<int> numOfTestArg("","test","Number of test to be performed",false,0,NULL);
+		cmd.add(numOfTestArg);
+		
+		ValueArg<int> featuresArg("","feature","Number of features",false,0,NULL);
+		cmd.add(featuresArg);
+		
+		vector<string> snpOrderArgAllowed;		
+		snpOrderArgAllowed.push_back("no");
+		snpOrderArgAllowed.push_back("desc");
+		snpOrderArgAllowed.push_back("asc");
+		ValuesConstraint<string> snpOrderArgAllowedVals( snpOrderArgAllowed );
+		ValueArg<string> snpOrderArg("","snporder","SNP score ordering",false,"asc",&snpOrderArgAllowedVals);
+		cmd.add(snpOrderArg);
 				
-				if(algorithm != "pvalue" && algorithm != "mutual_info"){
-					std::cout << "Invalue input, only accept {pvalue, mutual_info}.\n";						
-					exit(0);
-				}
-				i +=1;
-			} else if(std::string(argv[i]) == "-processor"){
-				processor = argv[i + 1];
-				if(processor != "cpu" && processor != "gpu"){
-					std::cout << "Invalue input, only accept {cpu, gpu}.\n";						
-					exit(0);
-				}
-				i +=1;
-			} else if(std::string(argv[i]) == "-device"){
-				device = argv[i + 1];
-				i +=1;
-			} else if(std::string(argv[i]) == "-thread"){
-				thread = argv[i + 1];
-				i +=1;
-			} else if(std::string(argv[i]) == "-feature"){
-				feature = argv[i + 1];
-				i +=1;
-			} else if(std::string(argv[i]) == "-file"){
-				inputFile = argv[i + 1];				
-				i +=1;
-			} else if(std::string(argv[i]) == "-output"){
-				outputFile = argv[i + 1];
-				i +=1;	
-			} else if(std::string(argv[i]) == "-ordering"){
-				ordering = argv[i + 1];
-				i +=1;
-			} else if(std::string(argv[i]) == "-stdout"){
-				stdout = argv[i + 1];
-				i +=1;	
-			} else if(std::string(argv[i]) == "-test"){
-				test = argv[i + 1];
-				i +=1;				
-			} else if(std::string(argv[i]) == "-try_thread_to"){
-				try_thread_to = argv[i + 1];
-				i +=1;							
-			} else if(std::string(argv[i]) == "-try_thread_from"){
-				try_thread_from = argv[i + 1];
-				i +=1;										
-			} else if(std::string(argv[i]) == "-try_thread_step"){
-				try_thread_step = argv[i + 1];
-				i +=1;										
-			}  else if(std::string(argv[i]) == "-format"){
-				outputFormat = argv[i + 1];				
-				if(outputFormat != "matlab" && outputFormat != "tab_delimited"){
-					std::cout << "Invalue input, only accept {matlab, tab_delimited}.\n";						
-					exit(0);
-				}
-				i +=1;
-			} else if(std::string(argv[i]) == "-folder"){
-				inputFolder = argv[i + 1];
-				i +=1;				
-			} else {
-				std::cout << "Not enough or invalid arguments, please try again.\n";                    
-				exit(0);
-			}          
-		}
-	}
-	
-	if(inputFile!=""){
-		char filepath[100];
-		memset(filepath,0,100);
-		strcat(filepath, inputFile.c_str());
-		processFile(filepath, algorithm, processor, outputFile, outputFormat, device, thread, feature, test, try_thread_from, try_thread_to, try_thread_step, stdout, ordering);
-	}else if(inputFolder!=""){
-		char folderbase[100];
-		memset(folderbase, 0, 100);
-		strcat(folderbase, inputFolder.c_str());
-		processFolder(folderbase, algorithm, processor, device, thread, feature);
-	}else{
-		char folderbase[100];
-		memset(folderbase, 0, 100);
-		strcat(folderbase, "/uac/msc/pschu/project/Algorithm/data/snp1000");
-		processFolder(folderbase, algorithm, processor, device, thread, feature);
-	}
+		SwitchArg gpuAccelerationArg("g","gpu","Enable GPU Acceleration",false);
+		cmd.add(gpuAccelerationArg);
+			
+		ValueArg<string> inputFileArg("","file","Input file",true,"",NULL);			
+		ValueArg<string> inputFolderArg("","folder","Input folder",true,"",NULL);			
+		cmd.xorAdd(inputFileArg,inputFolderArg);
+		
+		SwitchArg stdoutArg("","stdout","Print result to screen",false);			
+		cmd.add(stdoutArg);	
+		
+		SwitchArg displayProcessingTimeArg("","display_processing_time","Display processing time",false);			
+		cmd.add(displayProcessingTimeArg);			
+		
+		ValueArg<string> outputFileArg("","output","Output file",false,"",NULL);
+		cmd.add(outputFileArg);						
+			
+		vector<string> outputFormatArgAllowed;
+		outputFormatArgAllowed.push_back("matlab");
+		outputFormatArgAllowed.push_back("tab_delimited");			
+		ValuesConstraint<string> outputFormatArgAllowedVals( outputFormatArgAllowed );
+		ValueArg<string> outputFormatArg("","format","Output format",false,"tab_delimited",&outputFormatArgAllowedVals);
+		cmd.add(outputFormatArg);
+		
+		
+		cmd.parse( argc, argv );
+		
+		Command command;
+		
+		command.processorCommand.algorithm = algorithmArg.getValue();
+		command.processorCommand.gpuAcceleration = gpuAccelerationArg.getValue();
+		command.processorCommand.cpuCore = cpuCoreArg.getValue();
+		command.processorCommand.gpuDevice = gpuDeviceArg.getValue();
+		command.processorCommand.gpuBlockThread = gpuBlockThreadArg.getValue();
+		
+		command.inputCommand.filePath = inputFileArg.getValue();
+		command.inputCommand.folderPath = inputFolderArg.getValue();
+		command.inputCommand.features = featuresArg.getValue();
+		command.inputCommand.numOfTest = numOfTestArg.getValue();
+		
+		command.outputCommand.stdout = stdoutArg.getValue();
+		command.outputCommand.format = outputFormatArg.getValue();
+		command.outputCommand.snpOrder = snpOrderArg.getValue();
+		command.outputCommand.outputFile = outputFileArg.getValue();
+		command.outputCommand.displayProcessingTime = displayProcessingTimeArg.getValue();
+		return command;
 	
 
-	return 0;
+	} catch (ArgException& e)  // catch any exceptions
+	{ 
+		cerr << "error: " << e.error() << " for arg " << e.argId() << endl; 
+		exit(EXIT_FAILURE);
+	}	
 }
 
-Processor* getProcessor(std::string algorithm, std::string processor, std::string device, std::string thread)
-{
-	//std::cout<<"algorithm="<<algorithm<<", processor="<<processor<<", device="<<device<<", thread="<<thread<<std::endl;
-	if (algorithm == "mutual_info"){
+int main(int argc, char * argv[]) {
+
+	
+	Command command = parseCommand(argc, argv);
+	
+	if(command.inputCommand.filePath!=""){
+		processFile(command);
+	}else if(command.inputCommand.folderPath!=""){		
+		processFolder(command);
+	}else{		
+		command.inputCommand.folderPath="/research/ksleung/pschu/data/snp1000";
+		processFolder(command);		
+	}
+	
+}
+
+Processor* getProcessor(ProcessorCommand processorCommand)
+{	
+	
+	if (processorCommand.algorithm == "mutual_info"){
 		return new SimpleMutualInformationProcessor();
-	}else if(algorithm == "pvalue"){
-		if(processor == "cpu"){
-			return new SimplePValueProcessor();
-		}else if(processor == "gpu"){
+		
+	}else if(processorCommand.algorithm == "pvalue"){
+		if(!processorCommand.gpuAcceleration){
+			SimpleProcessor* simpleProcessor = new SimplePValueProcessor();
+			simpleProcessor->setNumberOfCores(processorCommand.cpuCore);
+			return simpleProcessor;
+		}else if(processorCommand.gpuAcceleration){
 			GpuAcceleratedProcessor* gpuAcceleratedProcessor = new GpuAcceleratedPValueProcessor();
-			gpuAcceleratedProcessor->setNumberOfThreadsPerBlock(std::atoi(thread.c_str()));
-			gpuAcceleratedProcessor->setNumberOfDevice(std::atoi(device.c_str()));
+			gpuAcceleratedProcessor->setNumberOfThreadsPerBlock(processorCommand.gpuBlockThread);
+			gpuAcceleratedProcessor->setNumberOfDevice(processorCommand.gpuDevice);
 			return gpuAcceleratedProcessor;
 		}
 	}
 	//return sth
-	return new SimplePValueProcessor();
+	return NULL;
 }
 
-void processFile(char* filepath, std::string algorithm, std::string processor, std::string outputFile, std::string outputFormat, std::string device, std::string thread, std::string feature, std::string test, std::string try_thread_from, std::string try_thread_to, std::string try_thread_step, std::string stdout, std::string ordering){
+void processFile(Command command){
+		
+	InputCommand inputCommand = command.inputCommand;
+	OutputCommand outputCommand = command.outputCommand;
 		
 	SNPArffParser parser;
-	std::cout << filepath;
+	cout << inputCommand.filePath;
 	
-	StructArff* arff=parser.ParseSNPArffFile(filepath);	
+	StructArff* arff=parser.ParseSNPArffFile(inputCommand.filePath);	
 		
 	////
 	//
@@ -176,11 +216,11 @@ void processFile(char* filepath, std::string algorithm, std::string processor, s
 	//pvalueProcessor.calculate(1, 1, 1, 1, 1);
 	//virtual Result calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* label) = 0;
 
-	int features = std::atoi(feature.c_str());
-	if(features==-1){
+	int features = inputCommand.features;
+	if(features==0){
 		features = arff->FeatureCount;
 	}
-	std::cout<<"features="<<features<<std::endl;
+	cout<<"features="<<features<<endl;
 	bool featureMask[arff->FeatureCount];
 	for(int i=0;i<arff->FeatureCount;i++){
 		if(i<features){
@@ -188,147 +228,124 @@ void processFile(char* filepath, std::string algorithm, std::string processor, s
 		}else{
 			featureMask[i]=false;
 		}
-	}
+	}	
 	
-	
-	int testNum = std::atoi(test.c_str());
-	
-	
-	if(testNum >0){				
+	int testNum = inputCommand.numOfTest;
+	if(testNum >0){
 					
-		std::ofstream output;
-		if (stdout=="0"){
-			output.open(outputFile.c_str());
+		ofstream output;
+		if (!outputCommand.stdout){
+			output.open(outputCommand.outputFile.c_str());
 			output<<"means_ms=[];\n";		
 		}
-	
-		int tryThreadTo = std::atoi(try_thread_to.c_str());
-		int tryThreadFrom = std::atoi(try_thread_from.c_str());
-		int tryThreadStep = std::atoi(try_thread_step.c_str());
+			
 		long processingTime[testNum];
 		
-		if(tryThreadTo > 0){
-			if (stdout=="0"){
-				output<<"threads=[];\n";
-			}
-			for(int t=tryThreadFrom;t<tryThreadTo;t+=tryThreadStep){
-				std::stringstream threadNum;
-				std::stringstream name;
-				threadNum <<t;
-				name << "t"<< t;
-				Processor* myProcessor = getProcessor(algorithm, processor, device, threadNum.str());
-				for(int i=0;i<testNum;i++){
-					Result* r = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);
-					processingTime[i] = r->endTime - r->startTime;					
-				}
-				exportAvgPerformance(processingTime, testNum, name.str(), output, stdout);
-				if (stdout=="0"){
-					output<<"threads=[threads "<<t<<"];\n";	
-				}								
-			}		
-		}else{
-			Processor* myProcessor = getProcessor(algorithm, processor, device, thread);
-			for(int i=0;i<testNum;i++){
-				Result* r = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);
-				processingTime[i] = r->endTime - r->startTime;				
-			}
-			exportPerformance(processingTime, testNum, "test", output, stdout);
-		}
 		
-		if (stdout=="0"){
+		Processor* myProcessor = getProcessor(command.processorCommand);
+		for(int i=0;i<testNum;i++){
+			Result* r = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);
+			processingTime[i] = r->endTime - r->startTime;				
+		}
+		exportPerformance(processingTime, testNum, "test", output, outputCommand);
+		
+		if (!outputCommand.stdout){
 			output.close();
 		}
 		
 	} else {
-		Processor* myProcessor = getProcessor(algorithm, processor, device, thread);
-		Result* r = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);		
-		exportResult(arff, r, filepath, outputFile, outputFormat, algorithm, ordering);
+		Processor* myProcessor = getProcessor(command.processorCommand);
+		Result* result = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);		
+		exportResult(arff, result, command);
 	}
 }
 
-void exportPerformance(long processingTime[], int testNum, std::string name, std::ofstream& output, std::string stdout){
+void exportPerformance(long processingTime[], int testNum, string name, ofstream& output, OutputCommand outputCommand){
 	
-		
-	//std::cout<<"init:"<<processingTime[0]<<" ms"<<std::endl;	
-	if (stdout=="0"){
+	bool stdout = outputCommand.stdout;
+	bool displayProcessingTime = outputCommand.displayProcessingTime;
+	
+	//cout<<"init:"<<processingTime[0]<<" ms"<<endl;	
+	if (!stdout){
 		//output<<name<<"_init_ms="<<processingTime[0]<<";\n";
 		output<<name<<"_processing_ms=[";
-	}else if (stdout=="1"){
-		//std::cout<<name<<"_init_ms="<<processingTime[0]<<";\n";
-		std::cout<<name<<"_processing_ms=[";
+	}else if (stdout){
+		//cout<<name<<"_init_ms="<<processingTime[0]<<";\n";
+		cout<<name<<"_processing_ms=[";
 	}
 	
 	float total=0;
 	for(int i=0; i<testNum ;i++){
-		if (stdout=="0"){
+		if (!stdout){
 			output<<" "<<processingTime[i];		
 		}
 		total+=processingTime[i];
 	}
 	float mean = (total/testNum);
-	if (stdout=="0"){
+	if (!stdout){
 		output<<"];\n";	
 		output<<"means_ms=[means_ms "<<mean<<"];\n";
-	}else if (stdout=="1"){
-		std::cout<<"];\n";	
-		std::cout<<"means_ms=[means_ms "<<mean<<"];\n";
-	}else if(stdout=="processing_time"){
-		std::cout<< mean;
+	}else if(displayProcessingTime){
+		cout<< mean;
+	}else if (stdout){
+		cout<<"];\n";	
+		cout<<"means_ms=[means_ms "<<mean<<"];\n";
 	}
 }
 
-void exportAvgPerformance(long processingTime[], int testNum, std::string name, std::ofstream& output, std::string stdout){
+void exportAvgPerformance(long processingTime[], int testNum, string name, ofstream& output, bool stdout){
 			
-	//std::cout<<"init:"<<processingTime[0]<<" ms"<<std::endl;
+	//cout<<"init:"<<processingTime[0]<<" ms"<<endl;
 	
 	float total=0;
-	if(stdout == "0"){
+	if(!stdout){
 		output<<"#";
 	}else{	
-		std::cout<<"#";
+		cout<<"#";
 	}
 	for(int i=1; i<testNum ;i++){
-		if(stdout == "0"){
+		if(!stdout){
 			output<<" "<<processingTime[i];		
 		}else{
-			std::cout<<" "<<processingTime[i];
+			cout<<" "<<processingTime[i];
 		}
 		total+=processingTime[i];
 	}
 	float mean = total/(testNum-1);		
-	if (stdout=="0"){
+	if (!stdout){
 		output<<"\n";	
 		output<<"means_ms=[means_ms "<<mean<<"];\n";
 	}else{
-		std::cout<<"\n";
-		std::cout<<"means_ms=[means_ms "<<mean<<"];\n";
+		cout<<"\n";
+		cout<<"means_ms=[means_ms "<<mean<<"];\n";
 	}
 }
 
-void exportResult(StructArff* arff, Result* r, char* filepath, std::string outputFile, std::string outputFormat, std::string algorithm, std::string ordering)
+void exportResult(StructArff* arff, Result* r, Command command)
 {
-	if(outputFormat == "tab_delimited"){
-		std::cout<<"output format="<<outputFormat<<std::endl;
-		std::ofstream output;
-		output.open(outputFile.c_str());
+	OutputCommand outputCommand = command.outputCommand;
+	if(outputCommand.format == "tab_delimited"){
+		cout<<"output format="<<outputCommand.format<<endl;
+		ofstream output;
+		output.open(outputCommand.outputFile.c_str());
 		
-		output << "@" << filepath <<"\n";
+		output << "@" << outputCommand.outputFile <<"\n";
 				
-		std::multimap<float,std::string> scoreFeatureMap;
+		multimap<float,string> scoreFeatureMap;
 		
-		if(ordering == "asc"){
+		if(outputCommand.snpOrder == "asc"){
 			for(int i=0; i<arff->FeatureCount; i++){
-				scoreFeatureMap.insert(std::pair<float, std::string>(r->scores[i], std::string(arff->SNPNames[i])));
+				scoreFeatureMap.insert(pair<float, string>(r->scores[i], string(arff->SNPNames[i])));
 			}
 			
 			int rank = 1;
-			for(std::multimap<float,std::string>::iterator it = scoreFeatureMap.begin(); it!= scoreFeatureMap.end(); ++it){	
-				output<<(*it).second <<"\t"<<(*it).first<<"\t"<<rank<<std::endl;
+			for(multimap<float,string>::iterator it = scoreFeatureMap.begin(); it!= scoreFeatureMap.end(); ++it){	
+				output<<(*it).second <<"\t"<<(*it).first<<"\t"<<rank<<endl;
 				rank+=1;
 			} 
-		}else if(ordering == "no"){
+		}else if(outputCommand.snpOrder == "no"){
 			for(int i=0; i<arff->FeatureCount; i++){
-				output<<std::string(arff->SNPNames[i]) <<"\t"<<r->scores[i]<<std::endl;
+				output<<string(arff->SNPNames[i]) <<"\t"<<r->scores[i]<<endl;
 			}
 		}
 		
@@ -336,9 +353,9 @@ void exportResult(StructArff* arff, Result* r, char* filepath, std::string outpu
 		
 	}
 	
-	if(outputFormat == "matlab"){		
-		std::ofstream rankFile;
-		std::ofstream scoreFile;
+	if(outputCommand.format == "matlab"){		
+		ofstream rankFile;
+		ofstream scoreFile;
 		
 		struct timeval tv;
 		gettimeofday(&tv, NULL);
@@ -346,14 +363,14 @@ void exportResult(StructArff* arff, Result* r, char* filepath, std::string outpu
 			(unsigned long long)(tv.tv_sec) * 1000 +
 			(unsigned long long)(tv.tv_usec) / 1000;
 			
-		std::stringstream strstream0;
-		std::stringstream strstream1;
-		std::string rankFilename;
-		std::string scoreFilename;
+		stringstream strstream0;
+		stringstream strstream1;
+		string rankFilename;
+		string scoreFilename;
 		
 		
-		strstream0 << "./output/" << algorithm << "_ranks_" << millisecondsSinceEpoch << ".txt";
-		strstream1 << "./output/" << algorithm << "_scores_" << millisecondsSinceEpoch << ".txt";
+		strstream0 << "./output/" << command.processorCommand.algorithm << "_ranks_" << millisecondsSinceEpoch << ".txt";
+		strstream1 << "./output/" << command.processorCommand.algorithm << "_scores_" << millisecondsSinceEpoch << ".txt";
 		strstream0>>rankFilename;
 		strstream1>>scoreFilename;
 		
@@ -365,26 +382,26 @@ void exportResult(StructArff* arff, Result* r, char* filepath, std::string outpu
 		{
 			sortScores[s]=r->scores[s];
 			scoreFile << r->scores[s] << " ";
-			//std::cout<<sortScores[s]<<" ";
+			//cout<<sortScores[s]<<" ";
 		}
 		
-		std::sort(sortScores,sortScores+arff->FeatureCount);
+		sort(sortScores,sortScores+arff->FeatureCount);
 
 		int p1Ranks;
 		int p2Ranks;
 						
-		scoreFile << "filepath="<<outputFile <<": scores=[";
+		scoreFile << "filepath="<<outputCommand.outputFile <<": scores=[";
 				
 		float p1Score = r->scores[(arff->FeatureCount-2)];
 		float p2Score = r->scores[(arff->FeatureCount-1)];
 		p1Ranks = getRank(p1Score, sortScores, arff->FeatureCount);
 		p2Ranks = getRank(p2Score, sortScores, arff->FeatureCount);
 					
-		std::cout<<std::endl<<"P1 Score:"<<p1Score<<" P2 Score:"<<p2Score<<std::endl;
+		cout<<endl<<"P1 Score:"<<p1Score<<" P2 Score:"<<p2Score<<endl;
 		
-		//std::cout<<std::endl<<std::endl;
-		//std::cout<<"P1 Score="<<p1Score<<", Rank="<<p1Rank<<std::endl;
-		//std::cout<<"P2 Scire="<<p2Score<<", Rank="<<p2Rank<<std::endl;			
+		//cout<<endl<<endl;
+		//cout<<"P1 Score="<<p1Score<<", Rank="<<p1Rank<<endl;
+		//cout<<"P2 Scire="<<p2Score<<", Rank="<<p2Rank<<endl;			
 		scoreFile << "];\n";
 		//write p1Ranks, p2Ranks to a file
 		rankFile << "p1=[";	
@@ -398,12 +415,12 @@ void exportResult(StructArff* arff, Result* r, char* filepath, std::string outpu
 		rankFile.close();
 		scoreFile.close();
 		
-		std::cout<<std::endl<<"expoted the result to: "<<std::endl<<scoreFilename <<std::endl<<rankFilename<<std::endl;
+		cout<<endl<<"expoted the result to: "<<endl<<scoreFilename <<endl<<rankFilename<<endl;
 	}
 	
 }
 
-void processFolder(char* folderbase, std::string algorithm, std::string processor, std::string device, std::string thread, std::string feature)
+void processFolder(Command command)
 {
 	char* filepath = new char[100];
 
@@ -420,8 +437,8 @@ void processFolder(char* folderbase, std::string algorithm, std::string processo
 	file[20] = 0;
 
 	
-	std::ofstream rankFile;
-	std::ofstream scoreFile;
+	ofstream rankFile;
+	ofstream scoreFile;
 	
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
@@ -429,21 +446,21 @@ void processFolder(char* folderbase, std::string algorithm, std::string processo
 		(unsigned long long)(tv.tv_sec) * 1000 +
 		(unsigned long long)(tv.tv_usec) / 1000;
 		
-	std::stringstream strstream0;
-	std::stringstream strstream1;
-	std::string rankFilename;
-	std::string scoreFilename;
+	stringstream strstream0;
+	stringstream strstream1;
+	string rankFilename;
+	string scoreFilename;
 	
 	
-	strstream0 << "./output/" << algorithm << "_ranks_" << millisecondsSinceEpoch << ".txt";
-	strstream1 << "./output/" << algorithm << "_scores_" << millisecondsSinceEpoch << ".txt";
+	strstream0 << "./output/" << command.processorCommand.algorithm << "_ranks_" << millisecondsSinceEpoch << ".txt";
+	strstream1 << "./output/" << command.processorCommand.algorithm << "_scores_" << millisecondsSinceEpoch << ".txt";
 	strstream0>>rankFilename;
 	strstream1>>scoreFilename;
 	
 	rankFile.open (rankFilename.c_str());
 	scoreFile.open (scoreFilename.c_str());
 	
-	Processor* myProcessor = getProcessor(algorithm, processor, device, thread);
+	Processor* myProcessor = getProcessor(command.processorCommand);
 	
 	
 	SNPArffParser parser;
@@ -472,12 +489,12 @@ void processFolder(char* folderbase, std::string algorithm, std::string processo
 				tempfile[11] = '0';
 			}
 			
-			memset(filepath, 0, 100);
-			strcat(filepath, folderbase);
+			memset(filepath, 0, 200);
+			strcat(filepath, command.inputCommand.folderPath.c_str());
 			strcat(filepath, tempfolder);
 			strcat(filepath, tempfile);
 			
-			std::cout << filepath;
+			cout << filepath;
 			StructArff* arff=parser.ParseSNPArffFile(filepath);
 			
 			scoreFile << "filepath="<<filepath <<": scores=[";
@@ -491,11 +508,11 @@ void processFolder(char* folderbase, std::string algorithm, std::string processo
 			//pvalueProcessor.calculate(1, 1, 1, 1, 1);
 			//virtual Result calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* label) = 0;
 		
-			int features = std::atoi(feature.c_str());
-			if(features==-1){
+			int features = command.inputCommand.features;
+			if(features==0){
 				features = arff->FeatureCount;
 			}
-			std::cout<<"features="<<features<<std::endl;
+			cout<<"features="<<features<<endl;
 			bool featureMask[arff->FeatureCount];
 			for(int i=0;i<arff->FeatureCount;i++){
 				if(i<features){
@@ -514,22 +531,22 @@ void processFolder(char* folderbase, std::string algorithm, std::string processo
 				
 				sortScores[s]=r->scores[s];
 				scoreFile << r->scores[s] << " ";
-				//std::cout<<sortScores[s]<<" ";
+				//cout<<sortScores[s]<<" ";
 			}
 
 			
-			std::sort(sortScores,sortScores+arff->FeatureCount);
+			sort(sortScores,sortScores+arff->FeatureCount);
 		
 			float p1Score = r->scores[(arff->FeatureCount-2)];
 			float p2Score = r->scores[(arff->FeatureCount-1)];
 			p1Ranks[fileindex] = getRank(p1Score, sortScores, arff->FeatureCount);
 			p2Ranks[fileindex] = getRank(p2Score, sortScores, arff->FeatureCount);
 						
-			std::cout<<std::endl<<"P1 Score:"<<p1Score<<" P2 Score:"<<p2Score<<std::endl;
+			cout<<endl<<"P1 Score:"<<p1Score<<" P2 Score:"<<p2Score<<endl;
 			
-			//std::cout<<std::endl<<std::endl;
-			//std::cout<<"P1 Score="<<p1Score<<", Rank="<<p1Rank<<std::endl;
-			//std::cout<<"P2 Scire="<<p2Score<<", Rank="<<p2Rank<<std::endl;			
+			//cout<<endl<<endl;
+			//cout<<"P1 Score="<<p1Score<<", Rank="<<p1Rank<<endl;
+			//cout<<"P2 Scire="<<p2Score<<", Rank="<<p2Rank<<endl;			
 			scoreFile << "];\n";
 		}
 		
