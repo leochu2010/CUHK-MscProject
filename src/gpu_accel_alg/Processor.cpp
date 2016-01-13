@@ -5,6 +5,8 @@
 #include <math.h>
 #include <iostream>
 
+using namespace std;
+
 void Processor::setDebug(bool debug){
 	this->debug = debug;
 }
@@ -45,6 +47,8 @@ Result* Processor::calculate(int numOfSamples, int numOfFeatures, char* sampleFe
 			
 	int featuresPerArray = getFeaturesPerArray(numOfFeatures, arrayNumbers);	
 	
+	int numOfFeaturesPerArray[arrayNumbers];
+	
 	char **label0FeatureSizeTimesSampleSize2dArray = (char**)malloc(arrayNumbers * sizeof(char*));
 	char **label1FeatureSizeTimesSampleSize2dArray = (char**)malloc(arrayNumbers * sizeof(char*));
 	for(int arrayId =0; arrayId<arrayNumbers; arrayId++){
@@ -52,7 +56,9 @@ Result* Processor::calculate(int numOfSamples, int numOfFeatures, char* sampleFe
 		label1FeatureSizeTimesSampleSize2dArray[arrayId] = (char*)malloc(featuresPerArray * numOfLabel1Samples * sizeof(char));				
 	}
 	
-		
+	for(int i=0;i<arrayNumbers;i++){
+		numOfFeaturesPerArray[i] = 0;
+	}
 	for(int i=0;i<numOfFeatures;i++){
 		int arrayId = i / featuresPerArray;
 		int featureId = i % featuresPerArray;
@@ -70,19 +76,27 @@ Result* Processor::calculate(int numOfSamples, int numOfFeatures, char* sampleFe
 		{
 			int index = j*numOfFeatures + i;			
 			if(labels[j]==0){
-				label0FeatureSizeTimesSampleSize2dArray[arrayId][featureId * numOfLabel0Samples + label0Index]=sampleFeatureMatrix[index];				
+				label0FeatureSizeTimesSampleSize2dArray[arrayId][featureId * numOfLabel0Samples + label0Index]=sampleFeatureMatrix[index];
 				label0Index+=1;
 			}else if(labels[j]==1){
 				label1FeatureSizeTimesSampleSize2dArray[arrayId][featureId * numOfLabel1Samples + label1Index]=sampleFeatureMatrix[index];
 				label1Index+=1;				
-			}
-		}				
+			}			
+		}	
+		numOfFeaturesPerArray[arrayId]+=1;					
 	}
 		
 	Result* result = calculate(numOfFeatures, 
 		label0FeatureSizeTimesSampleSize2dArray, numOfLabel0Samples,
 		label1FeatureSizeTimesSampleSize2dArray, numOfLabel1Samples, 
+		numOfFeaturesPerArray,
 		featureMask);
+
+	/*
+	for(int i=0; i<numOfFeatures;i++){			
+		cout<<"final"<<i<<":"<<result->scores[i]<<endl;
+	}	
+	*/
 		
 	//free memory
 	for(int dev=0; dev<arrayNumbers; dev++) {
@@ -91,16 +105,17 @@ Result* Processor::calculate(int numOfSamples, int numOfFeatures, char* sampleFe
 	}
 	free(label0FeatureSizeTimesSampleSize2dArray);
 	free(label1FeatureSizeTimesSampleSize2dArray);	
-		
+
 	return result;
 }
 
 Result* Processor::calculate(int numOfFeatures, 
 		char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
 		char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+		int* numOfFeaturesPerArray,
 		bool* featureMask){
 		
-		std::cout << "no calculation"<<std::endl;
+		cout << "no calculation"<<endl;
 		
 		return 0;
 }

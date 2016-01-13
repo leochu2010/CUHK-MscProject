@@ -1,16 +1,18 @@
 #ifndef GPUACCELERATEDPROCESSOR_H
 #define GPUACCELERATEDPROCESSOR_H
 
+#include <cuda.h>
+#include <cuda_runtime.h>
 #include "Processor.h"
+
+
 class GpuAcceleratedProcessor : public Processor 
 {
 private:	
 	int numberOfThreadsPerBlock;	
 	
 	int numberOfDevice;
-	
-	bool activated;
-	
+			
 public:	
 	GpuAcceleratedProcessor();
 	
@@ -21,18 +23,26 @@ public:
 	void setNumberOfDevice(int numberOfDevice);
 	
 	int getNumberOfDevice();
-		
-	Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);	
-	
-	virtual Result* calculate(int numOfFeatures, 
+			
+	Result* calculate(int numOfFeatures, 
 		char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
 		char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
-		bool* featureMask);		
+		int* numOfFeaturesPerArray,
+		bool* featureMask);
+		
+	//for running in threadpool
+	virtual void asynCalculateOnDevice(int maxFeaturesPerDevice,
+		char* label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
+		char* label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples,		
+		bool* featureMask,		
+		double* score,
+		int device,
+		cudaStream_t* stream){};
 	
 protected:
 
-	virtual int getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures);		
-	
+	int getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures);
+		
 };
 
 #endif

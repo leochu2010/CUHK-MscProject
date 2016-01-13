@@ -27,6 +27,7 @@ public:
   void* execute_thread();
   int add_task(Task* task);
   bool hasTask();
+  void waitAll();
 private:
   int m_pool_size;
   Mutex m_task_mutex;

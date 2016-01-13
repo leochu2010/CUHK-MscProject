@@ -4,6 +4,7 @@
 #include <math.h>
 #include <iostream>
 #include <pthread.h>
+#include <cstdlib>
 #include "threadpool/ThreadPool.h"
 
 using namespace std;
@@ -100,6 +101,7 @@ void calculate_Pvalue(void* arg) {
 Result* SimplePValueProcessor::calculate(int numOfFeatures, 
 	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
 	char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+	int* numOfFeaturesPerArray,
 	bool* featureMask){
 
 	Timer t1("Processing");
@@ -116,7 +118,7 @@ Result* SimplePValueProcessor::calculate(int numOfFeatures,
 	int ret = tp.initialize_threadpool();
 	if (ret == -1) {
 		cerr << "Failed to initialize thread pool!" << endl;
-		return 0;
+		exit(EXIT_FAILURE);
 	}
 
 	Result* testResult = new Result;
@@ -136,10 +138,7 @@ Result* SimplePValueProcessor::calculate(int numOfFeatures,
 		tp.add_task(t);
 	}
 
-	while(tp.hasTask()){
-		sleep(0.1);
-	}
-
+	tp.waitAll();
 	tp.destroy_threadpool();
 	
 	/*

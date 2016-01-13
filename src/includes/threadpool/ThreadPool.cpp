@@ -80,6 +80,12 @@ bool ThreadPool::hasTask(){
 	}
 }
 
+void ThreadPool::waitAll(){
+	while(this->hasTask()){
+		sleep(0.01);
+	}
+}
+
 void* ThreadPool::execute_thread()
 {
   Task* task = NULL;

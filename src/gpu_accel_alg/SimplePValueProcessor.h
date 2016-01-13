@@ -8,7 +8,8 @@ class SimplePValueProcessor : public SimpleProcessor
 		
 		Result* calculate(int numOfFeatures, 
 				char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-				char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
+				char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples,
+				int* numOfFeaturesPerArray,				
 				bool* featureMask);
 
 };

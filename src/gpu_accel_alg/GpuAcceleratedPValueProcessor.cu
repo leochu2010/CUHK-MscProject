@@ -1,5 +1,4 @@
 #include "GpuAcceleratedPValueProcessor.h"
-#include "utils/Timer.h"
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
@@ -8,68 +7,62 @@
 #include <cuda_runtime.h>
 #include <cuda_profiler_api.h>
 
+using namespace std;
+
 //declare local function
 __global__ void calculate_Pvalue(
 	char *d_array1, size_t array1_size, size_t array1_size_per_thread,
 	char *d_array2, size_t array2_size, size_t array2_size_per_thread, 
-	double *d_score, 
-	size_t dev, size_t featuresPerDevice, 
+	double *d_score,
 	size_t numOfFeatures,
-	size_t NLoopPerThread);
+	size_t NLoopPerThread,
+	int device);
 	
-//implement API	
-Result* GpuAcceleratedPValueProcessor::calculate(int numOfFeatures, 
-	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-	char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
-	bool* featureMask){
+
+void GpuAcceleratedPValueProcessor::asynCalculateOnDevice(int maxFeaturesPerDevice,
+		char* label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
+		char* label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples,		
+		bool* featureMask,		
+		double* score,
+		int device,
+		cudaStream_t* stream){
+	
+	/*
+	if(device == 1){
+		cout<<"maxFeaturesPerDevice="<<maxFeaturesPerDevice<<", label0FeatureSizeTimesSampleSize2dArray[0]="<<0+label0FeatureSizeTimesSampleSize2dArray[0]<<endl;	
+	}
+	*/
+	
+	int features = maxFeaturesPerDevice;	
 			
-	//get device and thread numbers	
-	int deviceCount = getNumberOfDevice();	
-	int featuresPerDevice = getFeaturesPerArray(numOfFeatures, deviceCount);
-			
-	double score[deviceCount][featuresPerDevice];
-		
 	int threadSize = getNumberOfThreadsPerBlock();
 	size_t label0SizePerThread = ceil((numOfLabel0Samples/(float)(threadSize)));
 	size_t label1SizePerThread = ceil((numOfLabel1Samples/(float)(threadSize)));
-		
-	cudaProfilerStart();
-	Timer totalProcessing("Total Processing");
-	totalProcessing.start();
-	
 	
 	//copy data from main memory to GPU	
-	char *d_label0Array[deviceCount];
-	char *d_label1Array[deviceCount];
-	double *d_score[deviceCount];
-		
+	char *d_label0Array;
+	char *d_label1Array;
+	double *d_score;
+	
 	if(this->isDebugEnabled()){
-		std::cout << "copy to GPU"<<std::endl;
+		cout << "copy to GPU"<<endl;
 	}
-	
-	cudaStream_t stream[deviceCount];
-	cudaError_t streamResult[deviceCount];
-	
-	for(int dev=0; dev<deviceCount; dev++) {
-		cudaSetDevice(dev);
-				
-		streamResult[dev] = cudaStreamCreate(&stream[dev]);	
-		cudaMalloc(&d_label0Array[dev],featuresPerDevice*numOfLabel0Samples*sizeof(char));
-		cudaMalloc(&d_label1Array[dev],featuresPerDevice*numOfLabel1Samples*sizeof(char));
-		cudaMalloc(&d_score[dev],featuresPerDevice*sizeof(double));		
-	}
-	
-	for(int dev=0; dev<deviceCount; dev++) {
-		cudaSetDevice(dev);		
 		
-		cudaMemcpyAsync(d_label0Array[dev],label0FeatureSizeTimesSampleSize2dArray[dev],featuresPerDevice*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice,stream[dev]);
-		cudaMemcpyAsync(d_label1Array[dev],label1FeatureSizeTimesSampleSize2dArray[dev],featuresPerDevice*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice,stream[dev]);
-		cudaMemcpyAsync(d_score[dev],score[dev],featuresPerDevice*sizeof(double),cudaMemcpyHostToDevice,stream[dev]);		
-	}	
+	cudaSetDevice(device);
+			
+	//cudaStreamCreate(stream);
 	
-	int grid2d = (int)ceil(pow(featuresPerDevice,1/2.));
+	cudaMalloc(&d_label0Array,features*numOfLabel0Samples*sizeof(char));
+	cudaMalloc(&d_label1Array,features*numOfLabel1Samples*sizeof(char));
+	cudaMalloc(&d_score,features*sizeof(double));
+		
+	cudaMemcpyAsync(d_label0Array,label0FeatureSizeTimesSampleSize2dArray,features*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice,*stream);
+	cudaMemcpyAsync(d_label1Array,label1FeatureSizeTimesSampleSize2dArray,features*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice,*stream);
+	cudaMemcpyAsync(d_score,score,features*sizeof(double),cudaMemcpyHostToDevice,*stream);		
+	
+	int grid2d = (int)ceil(pow(features,1/2.));
 	if(this->isDebugEnabled()){
-		std::cout<<"featuresPerDevice="<<featuresPerDevice<<",grid2d="<<grid2d<<",label0SizePerThread="<<label0SizePerThread<<",label1SizePerThread="<<label1SizePerThread<<std::endl;
+		cout<<"features="<<features<<",grid2d="<<grid2d<<",numOfLabel0Samples="<<numOfLabel0Samples<<",numOfLabel1Samples="<<numOfLabel1Samples<<endl;
 	}
 	
 	dim3 gridSize(grid2d,grid2d);
@@ -78,78 +71,45 @@ Result* GpuAcceleratedPValueProcessor::calculate(int numOfFeatures,
 	size_t NLoopPerThread = ceil(((float)N)/threadSize);
 	
 	//calculate	
-	for(size_t dev=0; dev<deviceCount; dev++) {
-		cudaSetDevice(dev);
-		calculate_Pvalue<<<gridSize, threadSize>>>(
-			d_label1Array[dev], numOfLabel1Samples, label1SizePerThread, 
-			d_label0Array[dev], numOfLabel0Samples, label0SizePerThread, 
-			d_score[dev], 
-			dev, featuresPerDevice, 
-			numOfFeatures,
-			NLoopPerThread);
-	}
-		
+	calculate_Pvalue<<<gridSize, threadSize>>>(
+			d_label1Array, numOfLabel1Samples, label1SizePerThread, 
+			d_label0Array, numOfLabel0Samples, label0SizePerThread, 
+			d_score, features,			
+			NLoopPerThread,
+			device);
+			
 	if(this->isDebugEnabled()){
-		std::cout<<"cudaPeekAtLastError:"<<cudaPeekAtLastError()<<std::endl;
-	}
-	cudaDeviceSynchronize();
+		cout<<"cudaPeekAtLastError:"<<cudaPeekAtLastError()<<endl;
+	}	
+	cudaDeviceSynchronize();	
 	
 	//copy result from GPU to main memory
-	for(int dev=0; dev<deviceCount; dev++) {
-		cudaSetDevice(dev);
-		cudaMemcpyAsync(score[dev], d_score[dev], featuresPerDevice*sizeof(double), cudaMemcpyDeviceToHost,stream[dev]);
-	}	
+	cudaMemcpyAsync(score, d_score, features*sizeof(double), cudaMemcpyDeviceToHost,*stream);
 	
-	//free cuda memory
-	for(int dev=0; dev<deviceCount; dev++) {
-		cudaFree(d_label1Array[dev]);
-		cudaFree(d_label0Array[dev]);
-		cudaFree(d_score[dev]);
-		streamResult[dev] = cudaStreamDestroy(stream[dev]);
+	/*
+	if(device == 1){
+		for(int i=0; i <maxFeaturesPerDevice; i++){
+			cout<<i<<":"<<score[i]<<endl;
+		}
 	}
+	*/
+	//free cuda memory	
 	cudaFree(d_label1Array);
 	cudaFree(d_label0Array);
 	cudaFree(d_score);
-	
-	cudaProfilerStop();
-	
-	//return result
-	Result* testResult = new Result;
-	testResult->scores=new double[numOfFeatures];
-	for(int dev=0; dev<deviceCount; dev++) {		
-		for(int i=0; i<featuresPerDevice;i++){
-			int featureId = dev*featuresPerDevice+i;
-			if(featureId<numOfFeatures){
-				testResult->scores[featureId]=score[dev][i];
-				//std::cout<<"Feature "<<featureId<<":"<<score[dev][i]<<std::endl;		
-			}
-		}	
-	}
-	
-	if(this->isDebugEnabled()){
-		std::cout<<std::endl;
-	}
-		
-	totalProcessing.stop();	
-	testResult->startTime=totalProcessing.getStartTime();
-	testResult->endTime=totalProcessing.getStopTime();		
-	testResult->success=true;
-		
-	
-	return testResult;	
-}
-
+	cudaError_t streamResult = cudaStreamDestroy(*stream);
+}	
 
 __global__ void calculate_Pvalue(
 	char *d_array1, size_t array1_size, size_t array1_size_per_thread,
 	char *d_array2, size_t array2_size, size_t array2_size_per_thread, 
-	double *d_score, 
-	size_t dev, size_t featuresPerDevice, 
+	double *d_score,	
 	size_t numOfFeatures,
-	size_t NLoopPerThread) {
+	size_t NLoopPerThread,
+	int device) {
 		
 	//gridDim.x = gridDim.y as it is 2d 
-	//idx is feature of a block of this device
+	//idx is feature index of a block on this device
 	int idx = gridDim.x * blockIdx.x + blockIdx.y;	
 	
 	__shared__ float mean1;
@@ -166,10 +126,9 @@ __global__ void calculate_Pvalue(
 	
 	__syncthreads();
 	
-	if (idx < featuresPerDevice && dev*featuresPerDevice+idx < numOfFeatures){
-		//if (dev==0){
-			//printf("dev=%d, idx=%d, pitch0=%d, pitch1=%d \n",dev, idx, pitch0, pitch1);	
-		//}		
+	if (idx < numOfFeatures){
+		
+		//printf("idx=%d, pitch0=%d, pitch1=%d \n", idx, pitch0, pitch1);			
 				
 		if(threadIdx.x == 0){
 			if (array1_size <= 1) {
@@ -237,12 +196,12 @@ __global__ void calculate_Pvalue(
 		}
 				
 		__syncthreads();
+		
 		/*
-		if(threadIdx.x == 0 && idx==0){
-			printf("\n mean1=%f, mean2=%f",mean1, mean2);			
+		if(threadIdx.x == 0 && idx==0 && device == 1){
+			printf("\n device=%d, mean1=%f, mean2=%f",device ,mean1, mean2);			
 		}
 		*/
-		
 		
 		if(array1_size_per_thread*(threadIdx.x) < array1_size){
 			float v1 = 0;
@@ -278,12 +237,12 @@ __global__ void calculate_Pvalue(
 		}
 		__syncthreads();
 		
-		/*
-		if(threadIdx.x == 0 && idx==0){
-			printf("\n variance1=%f, variance2=%f",variance1, variance2);			
-		}
-		*/
 		
+		/*
+		if(threadIdx.x == 0 && idx==0 && device == 1){
+			printf("\n device=%d, variance1=%f, variance2=%f",device ,variance1, variance2);			
+		}
+		*/		
 		
 		__shared__ float sum1;
 		__shared__ float sum2;
@@ -322,12 +281,11 @@ __global__ void calculate_Pvalue(
 
 		__syncthreads();
 		
-		/*		
-		if(threadIdx.x == 0 && idx==0){
-			printf("idx=%d: sum1=%f, sum2=%f, NLoopPerThread=%d, threads=%d\n",idx,sum1,sum2,NLoopPerThread, threads);			
+		/*
+		if(device == 1 && threadIdx.x == 0 && idx==0){
+			printf("device=%d, idx=%d: sum1=%f, sum2=%f, NLoopPerThread=%d\n",device, idx,sum1,sum2,NLoopPerThread);			
 		}
-		*/
-		
+		*/		
 		
 		if (threadIdx.x == 0){
 			double return_value = ((h / 6.0) * ((pow(x,a-1))/(sqrt(1-x)) + 4.0 * sum1 + 2.0 * sum2))/(exp(lgamma(a)+0.57236494292470009-lgamma(a+0.5)));			
@@ -336,13 +294,15 @@ __global__ void calculate_Pvalue(
 			} else {							
 				d_score[idx] = return_value;
 				
-				/*
-				if (dev==0 && idx==1){
-					//printf("idx=%d: sum1=%f, sum2=%f\n",idx,sum1,sum2);
-					//printf("idx=%d: T-Test=%f, score=%f\n",dev*featuresPerDevice+idx,((mean1-mean2)/sqrt(variance1/array1_size+variance2/array2_size)),return_value);
-					//printf("idx=%d: mean1=%f,mean2=%f,variance1=%f,array1_size=%d,variance2=%f,array2_size=%d, T-Test=%f\n",dev*featuresPerDevice+idx,mean1,mean2,variance1,array1_size,variance2,array2_size,((mean1-mean2)/sqrt(variance1/array1_size+variance2/array2_size)),return_value);
-				}
-				*/
+			/*
+			if ((idx==1 || idx==0)&& device == 1){
+				printf("idx=%d: sum1=%f, sum2=%f\n",idx,sum1,sum2);
+
+				printf("idx=%d: T-Test=%f, score=%f\n",idx,((mean1-mean2)/sqrt(variance1/array1_size+variance2/array2_size)),return_value);
+			
+				printf("idx=%d: mean1=%f,mean2=%f,variance1=%f,array1_size=%d,variance2=%f,array2_size=%d, T-Test=%f\n",idx,mean1,mean2,variance1,array1_size,variance2,array2_size,((mean1-mean2)/sqrt(variance1/array1_size+variance2/array2_size)),return_value);
+			}
+			*/		
 				
 			}
 		}
