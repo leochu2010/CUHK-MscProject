@@ -140,14 +140,14 @@ Result* GpuAcceleratedProcessor::calculate(int numOfFeatures,
 		exit(EXIT_FAILURE);
 	}
 	
-	cudaStream_t stream[deviceCount];
-	cudaError_t streamResult[deviceCount];
+	cudaStream_t stream[deviceCount][5];
+	cudaError_t streamResult[deviceCount][5];
 		
 	for(int dev=0; dev<deviceCount; dev++) {
 					
 		CreateStreamArgs* createStreamArgs = new CreateStreamArgs;		
-		createStreamArgs->stream = &stream[dev];
-		createStreamArgs->streamResult = &streamResult[dev];
+		createStreamArgs->stream = stream[dev];
+		createStreamArgs->streamResult = streamResult[dev];
 		createStreamArgs->dev = dev;
 		
 		Task* t = new Task(&createStream, (void*) createStreamArgs);
@@ -179,7 +179,7 @@ Result* GpuAcceleratedProcessor::calculate(int numOfFeatures,
 		calculateArgs->numOfLabel1Samples = numOfLabel1Samples;
 		calculateArgs->score = score[dev];
 		calculateArgs->device = dev;
-		calculateArgs->stream = &stream[dev];
+		calculateArgs->stream = stream[dev];
 		calculateArgs->processor = this;
 		
 		//cout << streamResult[dev] <<endl;

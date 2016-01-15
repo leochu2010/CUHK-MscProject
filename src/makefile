@@ -1,4 +1,4 @@
-CC=/usr/local/gcc481/bin/g++
+CC=/opt/gcc481/bin/g++
 CFLAGS=-Wall -Wno-sign-compare
 
 LIB_SOURCES=gpu_accel_alg/*.cpp gpu_accel_alg/utils/*.cpp
@@ -9,7 +9,7 @@ APP_SOURCES=feature_selection/*.cpp
 APP_INCLUDES=-I includes -I . -I /usr/local/cuda/include 
 
 NVCC=/usr/local/cuda/bin/nvcc
-NVCFLAGS=-ccbin /usr/local/gcc481/bin/g++ -c -arch=sm_20 
+NVCFLAGS=-ccbin /opt/gcc481/bin/g++ -c -arch=sm_20 
 OBJS=*.o
 
 GpuAccelAlgLib:

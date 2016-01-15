@@ -49,8 +49,6 @@ void GpuAcceleratedPValueProcessor::asynCalculateOnDevice(int maxFeaturesPerDevi
 	}
 		
 	cudaSetDevice(device);
-			
-	//cudaStreamCreate(stream);
 	
 	cudaMalloc(&d_label0Array,features*numOfLabel0Samples*sizeof(char));
 	cudaMalloc(&d_label1Array,features*numOfLabel1Samples*sizeof(char));
@@ -60,7 +58,8 @@ void GpuAcceleratedPValueProcessor::asynCalculateOnDevice(int maxFeaturesPerDevi
 	cudaMemcpyAsync(d_label1Array,label1FeatureSizeTimesSampleSize2dArray,features*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice,*stream);
 	cudaMemcpyAsync(d_score,score,features*sizeof(double),cudaMemcpyHostToDevice,*stream);		
 	
-	int grid2d = (int)ceil(pow(features,1/2.));
+	//int grid2d = (int)ceil(pow(features,1/2.));
+	int grid2d = 6;
 	if(this->isDebugEnabled()){
 		cout<<"features="<<features<<",grid2d="<<grid2d<<",numOfLabel0Samples="<<numOfLabel0Samples<<",numOfLabel1Samples="<<numOfLabel1Samples<<endl;
 	}
