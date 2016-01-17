@@ -11,10 +11,14 @@ class SimpleProcessor : public Processor
 		void setNumberOfCores(int numberOfCores);
 		
 		Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);		
-		
-	protected:
 	
-		virtual int getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures);
+	//API without preprocessing for processors
+		virtual Result* asynCalculate(int numOfFeatures, 
+			char** label0SamplesArray_feature, int numOfLabel0Samples,
+			char** label1SamplesArray_feature, int numOfLabel1Samples, 			
+			bool* featureMask);
+	
+	protected:
 		
 		int getNumberOfCores();
 		

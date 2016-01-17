@@ -12,36 +12,42 @@ private:
 	int numberOfThreadsPerBlock;	
 	
 	int numberOfDevice;
+	
+	int numberOfStreamsPerDevice;
 			
 public:	
 	GpuAcceleratedProcessor();
 	
 	void setNumberOfThreadsPerBlock(int numberOfThreadsPerBlock);
+			
+	void setNumberOfDevice(int numberOfDevice);	
+	
+	void setNumberOfStreamsPerDevice(int numberOfStreams);
+			
+	Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);
+	
+	//for running in threadpool
+	virtual void calculateOnStream(int* numberOfFeaturesPerStream,
+		char** label0SamplesArray_stream_feature, int numOfLabel0Samples,
+		char** label1SamplesArray_stream_feature, int numOfLabel1Samples,
+		bool* featureMask,		
+		double** score,
+		int device,
+		cudaStream_t* streams){};		
+		
+protected:
+
+	int getNumberOfDevice();	
 	
 	int getNumberOfThreadsPerBlock();
 	
-	void setNumberOfDevice(int numberOfDevice);
+	int getNumberOfStreamsPerDevice();
 	
-	int getNumberOfDevice();
-			
-	Result* calculate(int numOfFeatures, 
-		char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-		char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
-		int* numOfFeaturesPerArray,
+	Result* calculateOnDevice(int numOfFeatures, 
+		char*** label0Samples_device_stream_feature, int numOfLabel0Samples,
+		char*** label1Samples_device_stream_feature, int numOfLabel1Samples, 
+		int** numberOfFeaturesPerStream,
 		bool* featureMask);
-		
-	//for running in threadpool
-	virtual void asynCalculateOnDevice(int maxFeaturesPerDevice,
-		char* label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-		char* label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples,		
-		bool* featureMask,		
-		double* score,
-		int device,
-		cudaStream_t* stream){};
-	
-protected:
-
-	int getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures);
 		
 };
 

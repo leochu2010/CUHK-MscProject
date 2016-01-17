@@ -28,6 +28,8 @@ struct ProcessorCommand{
 	int cpuCore;
 	int gpuDevice;
 	int gpuBlockThread;
+	int gpuDeviceStream;
+	bool debug;
 };
 
 struct InputCommand{
@@ -86,10 +88,12 @@ Command parseCommand(int argc, char** argv){
 		ValueArg<int> cpuCoreArg("c","core","Number of CPU Core",false,0,"int");
 		cmd.add(cpuCoreArg);
 		
-		ValueArg<int> gpuDeviceArg("d","device","Number of GPU Device",false,0,"int");
+		ValueArg<int> gpuDeviceArg("d","device","Number of GPU Devices",false,0,"int");
 		cmd.add(gpuDeviceArg);
-		ValueArg<int> gpuBlockThreadArg("t","thread","Number of GPU Block Thread",false,1,"int");
+		ValueArg<int> gpuBlockThreadArg("t","thread","Number of threads per block (for GPU acceleration)",false,1,"int");
 		cmd.add(gpuBlockThreadArg);
+		ValueArg<int> gpuDeviceStreamArg("s","stream","Number of streams per device (for GPU acceleration)",false,1,"int");
+		cmd.add(gpuDeviceStreamArg);
 			
 		ValueArg<int> numOfTestArg("","test","Number of test to be performed",false,0,"int");
 		cmd.add(numOfTestArg);
@@ -107,6 +111,9 @@ Command parseCommand(int argc, char** argv){
 				
 		SwitchArg gpuAccelerationArg("g","gpu","Enable GPU Acceleration",false);
 		cmd.add(gpuAccelerationArg);
+		
+		SwitchArg debugArg("","debug","Show debug message",false);
+		cmd.add(debugArg);
 			
 		ValueArg<string> inputFileArg("","file","Input file",true,"","string");			
 		ValueArg<string> inputFolderArg("","folder","Input folder",true,"","string");
@@ -137,6 +144,8 @@ Command parseCommand(int argc, char** argv){
 		command.processorCommand.cpuCore = cpuCoreArg.getValue();
 		command.processorCommand.gpuDevice = gpuDeviceArg.getValue();
 		command.processorCommand.gpuBlockThread = gpuBlockThreadArg.getValue();
+		command.processorCommand.gpuDeviceStream = gpuDeviceStreamArg.getValue();
+		command.processorCommand.debug = debugArg.getValue();
 		
 		command.inputCommand.filePath = inputFileArg.getValue();
 		command.inputCommand.folderPath = inputFolderArg.getValue();
@@ -183,11 +192,14 @@ Processor* getProcessor(ProcessorCommand processorCommand)
 		if(!processorCommand.gpuAcceleration){
 			SimpleProcessor* simpleProcessor = new SimplePValueProcessor();
 			simpleProcessor->setNumberOfCores(processorCommand.cpuCore);
+			simpleProcessor->setDebug(processorCommand.debug);
 			return simpleProcessor;
 		}else if(processorCommand.gpuAcceleration){
 			GpuAcceleratedProcessor* gpuAcceleratedProcessor = new GpuAcceleratedPValueProcessor();
 			gpuAcceleratedProcessor->setNumberOfThreadsPerBlock(processorCommand.gpuBlockThread);
 			gpuAcceleratedProcessor->setNumberOfDevice(processorCommand.gpuDevice);
+			gpuAcceleratedProcessor->setNumberOfStreamsPerDevice(processorCommand.gpuDeviceStream);
+			gpuAcceleratedProcessor->setDebug(processorCommand.debug);
 			return gpuAcceleratedProcessor;
 		}
 	}
@@ -205,14 +217,8 @@ void processFile(Command command){
 	
 	StructArff* arff=parser.ParseSNPArffFile(inputCommand.filePath);	
 		
-	////
-	//
-	// you can add your code here
-	////
-				
-	//pvalueProcessor.calculate(1, 1, 1, 1, 1);
-	//virtual Result calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* label) = 0;
-
+	//process
+	
 	int features = inputCommand.features;
 	if(features==0){
 		features = arff->FeatureCount;

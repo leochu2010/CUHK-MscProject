@@ -17,32 +17,31 @@ __global__ void calculate_Pvalue(
 	size_t numOfFeatures,
 	size_t NLoopPerThread,
 	int device);
-	
 
-void GpuAcceleratedPValueProcessor::asynCalculateOnDevice(int maxFeaturesPerDevice,
-		char* label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-		char* label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples,		
+void GpuAcceleratedPValueProcessor::calculateOnStream(int* numberOfFeaturesPerStream,
+		char** label0SamplesArray_stream_feature, int numOfLabel0Samples,
+		char** label1SamplesArray_stream_feature, int numOfLabel1Samples,
 		bool* featureMask,		
-		double* score,
+		double** score,
 		int device,
-		cudaStream_t* stream){
-	
+		cudaStream_t* streams){
+			
 	/*
 	if(device == 1){
-		cout<<"maxFeaturesPerDevice="<<maxFeaturesPerDevice<<", label0FeatureSizeTimesSampleSize2dArray[0]="<<0+label0FeatureSizeTimesSampleSize2dArray[0]<<endl;	
+		cout<<"[GpuAcceleratedPValueProcessor]"<<"numberOfFeaturesPerStream[0]="<<numberOfFeaturesPerStream[0]<<", label0SamplesArray_stream_feature[0][0]="<<0+label0SamplesArray_stream_feature[0][0]<<endl;	
 	}
 	*/
 	
-	int features = maxFeaturesPerDevice;	
 			
 	int threadSize = getNumberOfThreadsPerBlock();
 	size_t label0SizePerThread = ceil((numOfLabel0Samples/(float)(threadSize)));
 	size_t label1SizePerThread = ceil((numOfLabel1Samples/(float)(threadSize)));
 	
 	//copy data from main memory to GPU	
-	char *d_label0Array;
-	char *d_label1Array;
-	double *d_score;
+	int streamCount = getNumberOfStreamsPerDevice();
+	char *d_label0Array[streamCount];
+	char *d_label1Array[streamCount];
+	double *d_score[streamCount];
 	
 	if(this->isDebugEnabled()){
 		cout << "copy to GPU"<<endl;
@@ -50,53 +49,64 @@ void GpuAcceleratedPValueProcessor::asynCalculateOnDevice(int maxFeaturesPerDevi
 		
 	cudaSetDevice(device);
 	
-	cudaMalloc(&d_label0Array,features*numOfLabel0Samples*sizeof(char));
-	cudaMalloc(&d_label1Array,features*numOfLabel1Samples*sizeof(char));
-	cudaMalloc(&d_score,features*sizeof(double));
-		
-	cudaMemcpyAsync(d_label0Array,label0FeatureSizeTimesSampleSize2dArray,features*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice,*stream);
-	cudaMemcpyAsync(d_label1Array,label1FeatureSizeTimesSampleSize2dArray,features*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice,*stream);
-	cudaMemcpyAsync(d_score,score,features*sizeof(double),cudaMemcpyHostToDevice,*stream);		
+	int maxFeaturesPerStream = numberOfFeaturesPerStream[0];
+
+	for(int i=0; i<streamCount; i++){
+		cudaMalloc(&d_label0Array[i],maxFeaturesPerStream*numOfLabel0Samples*sizeof(char));
+		cudaMalloc(&d_label1Array[i],maxFeaturesPerStream*numOfLabel1Samples*sizeof(char));
+		cudaMalloc(&d_score[i],maxFeaturesPerStream*sizeof(double));
+	}	
 	
-	//int grid2d = (int)ceil(pow(features,1/2.));
-	int grid2d = 6;
+	for(int i=0; i<streamCount; i++){
+		int features = numberOfFeaturesPerStream[i];
+		cudaMemcpyAsync(d_label0Array[i],label0SamplesArray_stream_feature[i],features*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice,streams[i]);
+		cudaMemcpyAsync(d_label1Array[i],label1SamplesArray_stream_feature[i],features*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice,streams[i]);
+		cudaMemcpyAsync(d_score[i],score[i],features*sizeof(double),cudaMemcpyHostToDevice,streams[i]);
+	}
+	
+	const size_t N = 65535;
+	size_t NLoopPerThread = ceil(((float)N)/threadSize);
+		
+	int grid2d = (int)ceil(pow(maxFeaturesPerStream,1/2.));	
 	if(this->isDebugEnabled()){
-		cout<<"features="<<features<<",grid2d="<<grid2d<<",numOfLabel0Samples="<<numOfLabel0Samples<<",numOfLabel1Samples="<<numOfLabel1Samples<<endl;
+		cout<<"maxFeaturesPerStream="<<maxFeaturesPerStream<<",grid2d="<<grid2d<<",numOfLabel0Samples="<<numOfLabel0Samples<<",numOfLabel1Samples="<<numOfLabel1Samples<<endl;
 	}
 	
 	dim3 gridSize(grid2d,grid2d);
 	
-	const size_t N = 65535;
-	size_t NLoopPerThread = ceil(((float)N)/threadSize);
-	
 	//calculate	
-	calculate_Pvalue<<<gridSize, threadSize>>>(
-			d_label1Array, numOfLabel1Samples, label1SizePerThread, 
-			d_label0Array, numOfLabel0Samples, label0SizePerThread, 
-			d_score, features,			
-			NLoopPerThread,
-			device);
+	for(int i=0; i<streamCount; i++){
+		calculate_Pvalue<<<gridSize, threadSize, 0, streams[i]>>>(
+				d_label1Array[i], numOfLabel1Samples, label1SizePerThread, 
+				d_label0Array[i], numOfLabel0Samples, label0SizePerThread, 
+				d_score[i], numberOfFeaturesPerStream[i],
+				NLoopPerThread,
+				device);
+	}
 			
 	if(this->isDebugEnabled()){
 		cout<<"cudaPeekAtLastError:"<<cudaPeekAtLastError()<<endl;
 	}	
-	cudaDeviceSynchronize();	
-	
+		
 	//copy result from GPU to main memory
-	cudaMemcpyAsync(score, d_score, features*sizeof(double), cudaMemcpyDeviceToHost,*stream);
-	
-	/*
-	if(device == 1){
-		for(int i=0; i <maxFeaturesPerDevice; i++){
-			cout<<i<<":"<<score[i]<<endl;
-		}
+	for(int i=0; i<streamCount; i++){
+		int features = numberOfFeaturesPerStream[i];
+		cudaMemcpyAsync(score[i], d_score[i], features*sizeof(double), cudaMemcpyDeviceToHost,streams[i]);
 	}
-	*/
+
+	cudaDeviceSynchronize();
+	
 	//free cuda memory	
-	cudaFree(d_label1Array);
-	cudaFree(d_label0Array);
-	cudaFree(d_score);
-	cudaError_t streamResult = cudaStreamDestroy(*stream);
+	//destroy streams
+	for(int i=0; i<streamCount; i++){
+		cudaFree(d_label1Array[i]);
+		cudaFree(d_label0Array[i]);
+		cudaFree(d_score[i]);
+		
+		cudaError_t streamResult = cudaStreamDestroy(streams[i]);
+	}
+	
+	cudaDeviceReset();
 }	
 
 __global__ void calculate_Pvalue(

@@ -98,10 +98,9 @@ void calculate_Pvalue(void* arg) {
 	*pvalueArgs -> result = score;
 }
 
-Result* SimplePValueProcessor::calculate(int numOfFeatures, 
-	char** label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-	char** label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
-	int* numOfFeaturesPerArray,
+Result* SimplePValueProcessor::asynCalculate(int numOfFeatures, 
+	char** label0SamplesArray_feature, int numOfLabel0Samples,
+	char** label1SamplesArray_feature, int numOfLabel1Samples,
 	bool* featureMask){
 
 	Timer t1("Processing");
@@ -127,9 +126,9 @@ Result* SimplePValueProcessor::calculate(int numOfFeatures,
 	for(int i=0;i<numOfFeatures;i++){
 		PvalueArgs* pvalueArgs = new PvalueArgs;
 		
-		pvalueArgs->array1 = label1FeatureSizeTimesSampleSize2dArray[i];
+		pvalueArgs->array1 = label1SamplesArray_feature[i];
 		pvalueArgs->array1_size = numOfLabel1Samples;
-		pvalueArgs->array2 = label0FeatureSizeTimesSampleSize2dArray[i];
+		pvalueArgs->array2 = label0SamplesArray_feature[i];
 		pvalueArgs->array2_size = numOfLabel0Samples;
 		pvalueArgs->index = i;
 		pvalueArgs->result = &testResult->scores[i];

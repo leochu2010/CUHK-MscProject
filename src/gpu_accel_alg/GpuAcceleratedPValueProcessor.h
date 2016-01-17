@@ -5,14 +5,14 @@
 class GpuAcceleratedPValueProcessor : public GpuAcceleratedProcessor 
 {
 	public:
-
-		void asynCalculateOnDevice(int maxFeaturesPerDevice,
-			char* label0FeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-			char* label1FeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples,			
+	
+		void calculateOnStream(int* numberOfFeaturesPerStream,
+			char** label0SamplesArray_stream_feature, int numOfLabel0Samples,
+			char** label1SamplesArray_stream_feature, int numOfLabel1Samples,
 			bool* featureMask,		
-			double* score,
+			double** score,
 			int device,
-			cudaStream_t* stream);
+			cudaStream_t* streams);
 
 };
 

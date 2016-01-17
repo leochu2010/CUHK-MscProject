@@ -11,6 +11,7 @@ using namespace std;
 GpuAcceleratedProcessor::GpuAcceleratedProcessor(){
 	this->numberOfThreadsPerBlock = 0;
 	this->numberOfDevice = 0;
+	this->numberOfStreamsPerDevice = 1;
 }
 
 void GpuAcceleratedProcessor::setNumberOfThreadsPerBlock(int numberOfThreadsPerBlock)
@@ -42,13 +43,20 @@ int GpuAcceleratedProcessor::getNumberOfDevice(){
 	}
 }
 
-int GpuAcceleratedProcessor::getNumberOfFeatureSizeTimesSampleSize2dArrays(int numOfFeatures){
-	return this->getNumberOfDevice();
+void GpuAcceleratedProcessor::setNumberOfStreamsPerDevice(int numberOfStreamsPerDevice)
+{
+	this->numberOfStreamsPerDevice = numberOfStreamsPerDevice;
+}
+
+int GpuAcceleratedProcessor::getNumberOfStreamsPerDevice()
+{
+	return this->numberOfStreamsPerDevice;
 }
 
 struct CreateStreamArgs{
 	cudaStream_t* stream;
 	cudaError_t* streamResult;
+	int numberOfStreamsPerDevice;
 	int dev;
 };
 
@@ -59,22 +67,24 @@ void createStream(void* arg) {
 	cudaStream_t* stream = createStreamArgs->stream;
 	cudaError_t* streamResult = createStreamArgs->streamResult;
 	int dev = createStreamArgs->dev;
+	int numberOfStreamsPerDevice = createStreamArgs->numberOfStreamsPerDevice;
 	
 	cudaSetDevice(dev);
-	*streamResult = cudaStreamCreate(stream);
+	for(int i=0; i<numberOfStreamsPerDevice; i++){
+		streamResult[i] = cudaStreamCreate(&stream[i]);
+	}
 	
 	cout<<"created stream for device:"<<dev<<endl;
 }
 
 struct AsynCalculateArgs{
-	int featuresPerDevice;
-	char* label0FeatureSizeTimesSampleSize2dArray;
+	int* numberOfFeaturesPerStream;
+	char** label0SamplesArray_device_stream_feature;
 	int numOfLabel0Samples;
-	char* label1FeatureSizeTimesSampleSize2dArray;
-	int numOfLabel1Samples;
-	int* numOfFeaturesPerArray;
+	char** label1SamplesArray_device_stream_feature;
+	int numOfLabel1Samples;	
 	bool* featureMask;
-	double* score;
+	double** score;
 	int device;
 	cudaStream_t* stream;
 	GpuAcceleratedProcessor* processor;	
@@ -83,11 +93,11 @@ struct AsynCalculateArgs{
 void asynCalculate(void* arg){
 	AsynCalculateArgs* calculateArgs = (AsynCalculateArgs*) arg;	
 	
-	calculateArgs->processor->asynCalculateOnDevice(		
-		calculateArgs->featuresPerDevice,
-		calculateArgs->label0FeatureSizeTimesSampleSize2dArray,
+	calculateArgs->processor->calculateOnStream(
+		calculateArgs->numberOfFeaturesPerStream,
+		calculateArgs->label0SamplesArray_device_stream_feature,
 		calculateArgs->numOfLabel0Samples,
-		calculateArgs->label1FeatureSizeTimesSampleSize2dArray,
+		calculateArgs->label1SamplesArray_device_stream_feature,
 		calculateArgs->numOfLabel1Samples,		
 		calculateArgs->featureMask,
 		calculateArgs->score,
@@ -96,11 +106,12 @@ void asynCalculate(void* arg){
 	);
 }
 
-Result* GpuAcceleratedProcessor::calculate(int numOfFeatures, 
-		char** label0ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel0Samples,
-		char** label1ProcessingUnitFeatureSizeTimesSampleSize2dArray, int numOfLabel1Samples, 
-		int* numOfFeaturesPerArray,
-		bool* featureMask){
+
+Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures, 
+	char*** label0SamplesArray_device_stream_feature, int numOfLabel0Samples,
+	char*** label1SamplesArray_device_stream_feature, int numOfLabel1Samples, 
+	int** numberOfFeaturesPerStream,
+	bool* featureMask){
 		
 	/*
 	Step 1:
@@ -140,15 +151,17 @@ Result* GpuAcceleratedProcessor::calculate(int numOfFeatures,
 		exit(EXIT_FAILURE);
 	}
 	
-	cudaStream_t stream[deviceCount][5];
-	cudaError_t streamResult[deviceCount][5];
+	int streamCount = getNumberOfStreamsPerDevice();
+	cudaStream_t stream[deviceCount][streamCount];
+	cudaError_t streamResult[deviceCount][streamCount];
 		
 	for(int dev=0; dev<deviceCount; dev++) {
-					
+		
 		CreateStreamArgs* createStreamArgs = new CreateStreamArgs;		
 		createStreamArgs->stream = stream[dev];
 		createStreamArgs->streamResult = streamResult[dev];
 		createStreamArgs->dev = dev;
+		createStreamArgs->numberOfStreamsPerDevice = getNumberOfStreamsPerDevice();
 		
 		Task* t = new Task(&createStream, (void*) createStreamArgs);
 		tp.add_task(t);
@@ -156,11 +169,17 @@ Result* GpuAcceleratedProcessor::calculate(int numOfFeatures,
 	
 	//do sth else when waiting...
 	//get feature num 
-	int maxFeaturesPerDevice = getFeaturesPerArray(numOfFeatures, deviceCount);
+	int numberOfDevices = getNumberOfDevice();
+	int featuresPerDevice = getFeaturesPerArray(numOfFeatures, numberOfDevices);
+	int numberOfStreams = getNumberOfStreamsPerDevice();
+	int featuresPerStream = getFeaturesPerArray(featuresPerDevice, numberOfStreams);
 	
-	double **score = (double**)malloc(deviceCount * sizeof(double*));	
-	for(int dev=0; dev<deviceCount; dev++) {
-		score[dev] = (double*)malloc(numOfFeaturesPerArray[dev] * sizeof(double));		
+	double ***score = (double***)malloc(numberOfDevices * sizeof(double**));
+	for(int i=0; i<numberOfDevices; i++) {
+		score[i] = (double**)malloc(numberOfStreams * sizeof(double*));		
+		for(int j=0; j<numberOfStreams; j++){
+			score[i][j] = (double*)malloc(featuresPerStream * sizeof(double));		
+		}
 	}
 		
 	cout<<"wait for steams ready"<<endl;
@@ -170,12 +189,13 @@ Result* GpuAcceleratedProcessor::calculate(int numOfFeatures,
 	//note that creating stream first can save some time, can further investigate if needed
 	processing.start();
 	
-	for(int dev=0; dev<deviceCount; dev++) {		
-		AsynCalculateArgs* calculateArgs = new AsynCalculateArgs;		
-		calculateArgs->featuresPerDevice = numOfFeaturesPerArray[dev];
-		calculateArgs->label0FeatureSizeTimesSampleSize2dArray = label0ProcessingUnitFeatureSizeTimesSampleSize2dArray[dev];
+	for(int dev=0; dev<deviceCount; dev++) {
+		//cout << "[GpuAcceleratedProcessor]label0SamplesArray_device_stream_feature["<<dev<<"][0][0]=" << 0+label0SamplesArray_device_stream_feature[dev][0][0] << endl;
+		AsynCalculateArgs* calculateArgs = new AsynCalculateArgs;
+		calculateArgs->numberOfFeaturesPerStream = numberOfFeaturesPerStream[dev];
+		calculateArgs->label0SamplesArray_device_stream_feature = label0SamplesArray_device_stream_feature[dev];
 		calculateArgs->numOfLabel0Samples = numOfLabel0Samples;
-		calculateArgs->label1FeatureSizeTimesSampleSize2dArray = label1ProcessingUnitFeatureSizeTimesSampleSize2dArray[dev];
+		calculateArgs->label1SamplesArray_device_stream_feature = label1SamplesArray_device_stream_feature[dev];
 		calculateArgs->numOfLabel1Samples = numOfLabel1Samples;
 		calculateArgs->score = score[dev];
 		calculateArgs->device = dev;
@@ -192,16 +212,21 @@ Result* GpuAcceleratedProcessor::calculate(int numOfFeatures,
 	
 	Result* calResult = new Result;		
 	calResult->scores = new double[numOfFeatures];
-		
-	for(int i=0; i<numOfFeatures;i++){
-		int dev = i / maxFeaturesPerDevice;
-		int featureIdx = i % maxFeaturesPerDevice;
-		calResult->scores[i] = score[dev][featureIdx];
+	
+	for(int i=0;i<numOfFeatures;i++){
+		int dev = i / featuresPerDevice;
+		int devRemainder = i % featuresPerDevice;
+		int streamId = devRemainder / featuresPerStream;
+		int featureId = devRemainder % featuresPerStream;
+		calResult->scores[i] = score[dev][streamId][featureId];
 		//cout<<dev<<","<<featureIdx<<","<<i<<":"<<score[dev][featureIdx]<<endl;
 	}	
 		
-	for(int dev=0; dev<deviceCount; dev++) {
-		free(score[dev]);
+	for(int i=0; i<numberOfDevices; i++) {
+		for(int j=0; j<numberOfStreams; j++){
+			free(score[i][j]);
+		}
+		free(score[i]);
 	}
 	free(score);
 	
@@ -215,8 +240,119 @@ Result* GpuAcceleratedProcessor::calculate(int numOfFeatures,
 	/*
 		don't forget try stream features in warp size in child classes
 	*/
+}
+
+Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels){
+		
+	Timer pre("Pre-processing");
+	pre.start();
+	
+	//group samples by label
+	int numOfLabel0Samples = 0;
+	int numOfLabel1Samples = 0;
+	
+	for(int j=0; j<numOfSamples; j++)
+	{			
+		if((int)labels[j]==0){
+			numOfLabel0Samples+=1;		
+		}else if((int)labels[j]==1){
+			numOfLabel1Samples+=1;
+		}
+	}
+		
+	//number of array
+	//device for GPU
+	int numberOfDevices = getNumberOfDevice();
+	int featuresPerDevice = getFeaturesPerArray(numOfFeatures, numberOfDevices);
+	int numberOfStreams = getNumberOfStreamsPerDevice();
+	int featuresPerStream = getFeaturesPerArray(featuresPerDevice, numberOfStreams);
 			
+	char ***label0SamplesArray_device_stream_feature = (char***)malloc(numberOfDevices * sizeof(char**));
+	char ***label1SamplesArray_device_stream_feature = (char***)malloc(numberOfDevices * sizeof(char**));
+	int **numberOfFeaturesPerStream = (int**)malloc(numberOfDevices * sizeof(int*));
+	for(int i=0; i<numberOfDevices; i++){
+		label0SamplesArray_device_stream_feature[i] = (char**)malloc(featuresPerDevice * sizeof(char*));
+		label1SamplesArray_device_stream_feature[i] = (char**)malloc(featuresPerDevice * sizeof(char*));		
+		for(int j=0; j<numberOfStreams;j++){
+			label0SamplesArray_device_stream_feature[i][j] = (char*)malloc(featuresPerStream * numOfLabel0Samples * sizeof(char));
+			label1SamplesArray_device_stream_feature[i][j] = (char*)malloc(featuresPerStream * numOfLabel1Samples * sizeof(char));
+		}
+		numberOfFeaturesPerStream[i] = (int*)malloc(featuresPerStream*sizeof(int));
+	}
+
+	for(int i=0;i<numberOfDevices;i++){
+		for(int j=0;j<numberOfStreams;j++){
+			numberOfFeaturesPerStream[i][j] = 0;
+		}
+	}
+	
+	if(isDebugEnabled()){
+		cout << "featuresPerDevice="<<featuresPerDevice<<", featuresPerStream="<<featuresPerStream<<endl;
+	}
+	
+	for(int i=0;i<numOfFeatures;i++){
+		int dev = i / featuresPerDevice;
+		int devRemainder = i % featuresPerDevice;
+		int streamId = devRemainder / featuresPerStream;
+		int featureId = devRemainder % featuresPerStream;
+		
+		//cout<<"dev="<<dev<<", streamId="<<streamId<<", featureId="<<featureId<<endl;
+		
+		if(featureMask[i] != true){
+			continue;
+		}
+
+		int label0Index=0;
+		int label1Index=0;
+		
+		for(int j=0; j<numOfSamples; j++)
+		{
+			int index = j*numOfFeatures + i;			
+			if(labels[j]==0){
+				label0SamplesArray_device_stream_feature[dev][streamId][featureId * numOfLabel0Samples + label0Index]=sampleFeatureMatrix[index];
+				label0Index+=1;
+			}else if(labels[j]==1){
+				label1SamplesArray_device_stream_feature[dev][streamId][featureId * numOfLabel1Samples + label1Index]=sampleFeatureMatrix[index];				
+				label1Index+=1;
+			}			
+		}	
+		numberOfFeaturesPerStream[dev][streamId]+=1;
+	}
+	
+	/*
+	for(int dev=0; dev<numberOfDevices; dev++) {
+		cout << "[GpuAcceleratedProcessor]label0SamplesArray_device_stream_feature["<<dev<<"][0][0]=" << 0+label0SamplesArray_device_stream_feature[dev][0][0] <<", sampleFeatureMatrix[0]="<<0+sampleFeatureMatrix[0]<< endl;
+	}
+	*/
+		
+	Result* result = calculateOnDevice(numOfFeatures, 
+		label0SamplesArray_device_stream_feature, numOfLabel0Samples,
+		label1SamplesArray_device_stream_feature, numOfLabel1Samples, 
+		numberOfFeaturesPerStream,
+		featureMask);
+
+	/*
+	for(int i=0; i<numOfFeatures;i++){			
+		cout<<"final"<<i<<":"<<result->scores[i]<<endl;
+	}	
+	*/
+		
+	//free memory
+	for(int i=0; i<numberOfDevices; i++) {
+		for(int j=0; j<numberOfStreams; j++){
+			free(label0SamplesArray_device_stream_feature[i][j]);
+			free(label1SamplesArray_device_stream_feature[i][j]);				
+		}
+		free(label0SamplesArray_device_stream_feature[i]);
+		free(label1SamplesArray_device_stream_feature[i]);	
+		free(numberOfFeaturesPerStream[i]);		
+	}
 	
 	
+	free(label0SamplesArray_device_stream_feature);
+	free(label1SamplesArray_device_stream_feature);
+	free(numberOfFeaturesPerStream);
+
+	return result;
 }
 
