@@ -14,6 +14,7 @@ __global__ void calculate_Pvalue(
 	char *d_array1, size_t array1_size, size_t array1_size_per_thread,
 	char *d_array2, size_t array2_size, size_t array2_size_per_thread, 
 	double *d_score,
+	bool *d_featureMask,
 	size_t numOfFeatures,
 	size_t NLoopPerThread,
 	int device);
@@ -21,7 +22,7 @@ __global__ void calculate_Pvalue(
 void GpuAcceleratedPValueProcessor::calculateOnStream(int* numberOfFeaturesPerStream,
 		char** label0SamplesArray_stream_feature, int numOfLabel0Samples,
 		char** label1SamplesArray_stream_feature, int numOfLabel1Samples,
-		bool* featureMask,		
+		bool** featureMasksArray_stream_feature,
 		double** score,
 		int device,
 		cudaStream_t* streams){
@@ -42,6 +43,7 @@ void GpuAcceleratedPValueProcessor::calculateOnStream(int* numberOfFeaturesPerSt
 	char *d_label0Array[streamCount];
 	char *d_label1Array[streamCount];
 	double *d_score[streamCount];
+	bool *d_featureMask[streamCount];
 	
 	if(this->isDebugEnabled()){
 		cout << "copy to GPU"<<endl;
@@ -55,6 +57,7 @@ void GpuAcceleratedPValueProcessor::calculateOnStream(int* numberOfFeaturesPerSt
 		cudaMalloc(&d_label0Array[i],maxFeaturesPerStream*numOfLabel0Samples*sizeof(char));
 		cudaMalloc(&d_label1Array[i],maxFeaturesPerStream*numOfLabel1Samples*sizeof(char));
 		cudaMalloc(&d_score[i],maxFeaturesPerStream*sizeof(double));
+		cudaMalloc(&d_featureMask[i],maxFeaturesPerStream*sizeof(bool));
 	}	
 	
 	for(int i=0; i<streamCount; i++){
@@ -62,6 +65,7 @@ void GpuAcceleratedPValueProcessor::calculateOnStream(int* numberOfFeaturesPerSt
 		cudaMemcpyAsync(d_label0Array[i],label0SamplesArray_stream_feature[i],features*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice,streams[i]);
 		cudaMemcpyAsync(d_label1Array[i],label1SamplesArray_stream_feature[i],features*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice,streams[i]);
 		cudaMemcpyAsync(d_score[i],score[i],features*sizeof(double),cudaMemcpyHostToDevice,streams[i]);
+		cudaMemcpyAsync(d_featureMask[i],featureMasksArray_stream_feature[i],features*sizeof(bool),cudaMemcpyHostToDevice,streams[i]);
 	}
 	
 	const size_t N = 65535;
@@ -79,7 +83,9 @@ void GpuAcceleratedPValueProcessor::calculateOnStream(int* numberOfFeaturesPerSt
 		calculate_Pvalue<<<gridSize, threadSize, 0, streams[i]>>>(
 				d_label1Array[i], numOfLabel1Samples, label1SizePerThread, 
 				d_label0Array[i], numOfLabel0Samples, label0SizePerThread, 
-				d_score[i], numberOfFeaturesPerStream[i],
+				d_score[i], 
+				d_featureMask[i],
+				numberOfFeaturesPerStream[i],
 				NLoopPerThread,
 				device);
 	}
@@ -102,7 +108,7 @@ void GpuAcceleratedPValueProcessor::calculateOnStream(int* numberOfFeaturesPerSt
 		cudaFree(d_label1Array[i]);
 		cudaFree(d_label0Array[i]);
 		cudaFree(d_score[i]);
-		
+		cudaFree(d_featureMask[i]);
 		cudaError_t streamResult = cudaStreamDestroy(streams[i]);
 	}
 	
@@ -113,6 +119,7 @@ __global__ void calculate_Pvalue(
 	char *d_array1, size_t array1_size, size_t array1_size_per_thread,
 	char *d_array2, size_t array2_size, size_t array2_size_per_thread, 
 	double *d_score,	
+	bool *d_featureMask,
 	size_t numOfFeatures,
 	size_t NLoopPerThread,
 	int device) {
@@ -127,6 +134,9 @@ __global__ void calculate_Pvalue(
 	__shared__ float variance2;
 		
 	if(threadIdx.x == 0){
+		if (d_featureMask[idx] != true){			
+			return;
+		}
 		mean1=0;
 		mean2=0;
 		variance1=0;

@@ -3,7 +3,7 @@
 
 #include "Result.h"
 
-
+#define FEATURE_MASKED 2
 
 class Processor {	
 

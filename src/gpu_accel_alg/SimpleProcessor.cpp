@@ -116,7 +116,12 @@ Result* SimpleProcessor::calculate(int numOfSamples, int numOfFeatures, char* sa
 	Result* result = new Result;
 	result->scores=new double[numOfFeatures];
 		
-	for(int i=0;i<numOfFeatures;i++){		
+	for(int i=0;i<numOfFeatures;i++){	
+		if(featureMask[i] != true){
+			result->scores[i]=FEATURE_MASKED;
+			continue;
+		}
+		
 		AsynCalculateArgs* asynCalculateArgs = new AsynCalculateArgs;
 		
 		asynCalculateArgs->array1 = label1SamplesArray_feature[i];

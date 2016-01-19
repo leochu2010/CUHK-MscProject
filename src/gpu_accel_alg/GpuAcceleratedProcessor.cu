@@ -79,11 +79,11 @@ void createStream(void* arg) {
 
 struct AsynCalculateArgs{
 	int* numberOfFeaturesPerStream;
-	char** label0SamplesArray_device_stream_feature;
+	char** label0SamplesArray_stream_feature;
 	int numOfLabel0Samples;
-	char** label1SamplesArray_device_stream_feature;
+	char** label1SamplesArray_stream_feature;
 	int numOfLabel1Samples;	
-	bool* featureMask;
+	bool** featureMasksArray_stream_feature;
 	double** score;
 	int device;
 	cudaStream_t* stream;
@@ -95,11 +95,11 @@ void asynCalculate(void* arg){
 	
 	calculateArgs->processor->calculateOnStream(
 		calculateArgs->numberOfFeaturesPerStream,
-		calculateArgs->label0SamplesArray_device_stream_feature,
+		calculateArgs->label0SamplesArray_stream_feature,
 		calculateArgs->numOfLabel0Samples,
-		calculateArgs->label1SamplesArray_device_stream_feature,
+		calculateArgs->label1SamplesArray_stream_feature,
 		calculateArgs->numOfLabel1Samples,		
-		calculateArgs->featureMask,
+		calculateArgs->featureMasksArray_stream_feature,
 		calculateArgs->score,
 		calculateArgs->device,
 		calculateArgs->stream
@@ -111,7 +111,7 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 	char*** label0SamplesArray_device_stream_feature, int numOfLabel0Samples,
 	char*** label1SamplesArray_device_stream_feature, int numOfLabel1Samples, 
 	int** numberOfFeaturesPerStream,
-	bool* featureMask){
+	bool*** featureMasksArray_device_stream_feature){
 		
 	/*
 	Step 1:
@@ -193,10 +193,11 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 		//cout << "[GpuAcceleratedProcessor]label0SamplesArray_device_stream_feature["<<dev<<"][0][0]=" << 0+label0SamplesArray_device_stream_feature[dev][0][0] << endl;
 		AsynCalculateArgs* calculateArgs = new AsynCalculateArgs;
 		calculateArgs->numberOfFeaturesPerStream = numberOfFeaturesPerStream[dev];
-		calculateArgs->label0SamplesArray_device_stream_feature = label0SamplesArray_device_stream_feature[dev];
+		calculateArgs->label0SamplesArray_stream_feature = label0SamplesArray_device_stream_feature[dev];
 		calculateArgs->numOfLabel0Samples = numOfLabel0Samples;
-		calculateArgs->label1SamplesArray_device_stream_feature = label1SamplesArray_device_stream_feature[dev];
+		calculateArgs->label1SamplesArray_stream_feature = label1SamplesArray_device_stream_feature[dev];
 		calculateArgs->numOfLabel1Samples = numOfLabel1Samples;
+		calculateArgs->featureMasksArray_stream_feature = featureMasksArray_device_stream_feature[dev];
 		calculateArgs->score = score[dev];
 		calculateArgs->device = dev;
 		calculateArgs->stream = stream[dev];
@@ -218,7 +219,11 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 		int devRemainder = i % featuresPerDevice;
 		int streamId = devRemainder / featuresPerStream;
 		int featureId = devRemainder % featuresPerStream;
-		calResult->scores[i] = score[dev][streamId][featureId];
+		if(featureMasksArray_device_stream_feature[dev][streamId][featureId] != true){
+			calResult->scores[i] = FEATURE_MASKED;
+		}else{
+			calResult->scores[i] = score[dev][streamId][featureId];					
+		}
 		//cout<<dev<<","<<featureIdx<<","<<i<<":"<<score[dev][featureIdx]<<endl;
 	}	
 		
@@ -269,13 +274,16 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 			
 	char ***label0SamplesArray_device_stream_feature = (char***)malloc(numberOfDevices * sizeof(char**));
 	char ***label1SamplesArray_device_stream_feature = (char***)malloc(numberOfDevices * sizeof(char**));
-	int **numberOfFeaturesPerStream = (int**)malloc(numberOfDevices * sizeof(int*));
+	bool ***featureMasksArray_device_stream_feature = (bool***)malloc(numberOfDevices * sizeof(bool**));
+	int **numberOfFeaturesPerStream = (int**)malloc(numberOfDevices * sizeof(int*));	
 	for(int i=0; i<numberOfDevices; i++){
 		label0SamplesArray_device_stream_feature[i] = (char**)malloc(featuresPerDevice * sizeof(char*));
 		label1SamplesArray_device_stream_feature[i] = (char**)malloc(featuresPerDevice * sizeof(char*));		
+		featureMasksArray_device_stream_feature[i] = (bool**)malloc(featuresPerDevice * sizeof(bool*));		
 		for(int j=0; j<numberOfStreams;j++){
 			label0SamplesArray_device_stream_feature[i][j] = (char*)malloc(featuresPerStream * numOfLabel0Samples * sizeof(char));
 			label1SamplesArray_device_stream_feature[i][j] = (char*)malloc(featuresPerStream * numOfLabel1Samples * sizeof(char));
+			featureMasksArray_device_stream_feature[i][j] = (bool*)malloc(featuresPerStream * sizeof(bool));
 		}
 		numberOfFeaturesPerStream[i] = (int*)malloc(featuresPerStream*sizeof(int));
 	}
@@ -298,7 +306,9 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 		
 		//cout<<"dev="<<dev<<", streamId="<<streamId<<", featureId="<<featureId<<endl;
 		
-		if(featureMask[i] != true){
+		featureMasksArray_device_stream_feature[dev][streamId][featureId] = featureMask[i];
+		
+		if(featureMask[i] != true){			
 			continue;
 		}
 
@@ -329,7 +339,7 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 		label0SamplesArray_device_stream_feature, numOfLabel0Samples,
 		label1SamplesArray_device_stream_feature, numOfLabel1Samples, 
 		numberOfFeaturesPerStream,
-		featureMask);
+		featureMasksArray_device_stream_feature);
 
 	/*
 	for(int i=0; i<numOfFeatures;i++){			
@@ -341,16 +351,19 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 	for(int i=0; i<numberOfDevices; i++) {
 		for(int j=0; j<numberOfStreams; j++){
 			free(label0SamplesArray_device_stream_feature[i][j]);
-			free(label1SamplesArray_device_stream_feature[i][j]);				
+			free(label1SamplesArray_device_stream_feature[i][j]);
+			free(featureMasksArray_device_stream_feature[i][j]);	
 		}
 		free(label0SamplesArray_device_stream_feature[i]);
 		free(label1SamplesArray_device_stream_feature[i]);	
+		free(featureMasksArray_device_stream_feature[i]);	
 		free(numberOfFeaturesPerStream[i]);		
 	}
 	
 	
 	free(label0SamplesArray_device_stream_feature);
 	free(label1SamplesArray_device_stream_feature);
+	free(featureMasksArray_device_stream_feature);	
 	free(numberOfFeaturesPerStream);
 
 	return result;
