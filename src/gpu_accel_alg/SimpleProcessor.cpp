@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include "utils/Timer.h"
+#include "threadpool/ThreadPool.h"
 
 using namespace std;
 
@@ -11,13 +12,28 @@ void SimpleProcessor::setNumberOfCores(int numberOfCores){
     this->numberOfCores = numberOfCores;
 }
 
-Result* SimpleProcessor::asynCalculate(int numOfFeatures, 
-		char** label0SamplesArray_feature, int numOfLabel0Samples,
-		char** label1SamplesArray_feature, int numOfLabel1Samples, 			
-		bool* featureMask){
+struct AsynCalculateArgs
+{
+	char *array1;
+	int array1_size;
+	char *array2;
+	int array2_size;	
+	int index;
+	double *score;
+	SimpleProcessor* processor;	
+};
+
+void asynCalculateAFeature(void* arg) {	
+	AsynCalculateArgs* asynCalculateArgs = (AsynCalculateArgs*) arg;
 		
-	cout << "no calculation"<<endl;
-	return new Result;
+	asynCalculateArgs->processor->calculateAFeature(
+		asynCalculateArgs->array1,
+		asynCalculateArgs->array1_size,
+		asynCalculateArgs->array2,
+		asynCalculateArgs->array2_size,
+		asynCalculateArgs->score
+	);	
+	
 }
 
 Result* SimpleProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels){
@@ -79,11 +95,56 @@ Result* SimpleProcessor::calculate(int numOfSamples, int numOfFeatures, char* sa
 			}			
 		}			
 	}
+			
+	Timer t1("Processing");
+	t1.start();		
+	
+	int cores = getNumberOfCores();
+	int poolThreads = 2 * cores;
+	if (cores == 1){
+		poolThreads = 1;
+	}
+	
+	ThreadPool tp(poolThreads);
+	
+	int ret = tp.initialize_threadpool();
+	if (ret == -1) {
+		cerr << "Failed to initialize thread pool!" << endl;
+		exit(EXIT_FAILURE);
+	}
+
+	Result* result = new Result;
+	result->scores=new double[numOfFeatures];
 		
-	Result* result = asynCalculate(numOfFeatures, 
-		label0SamplesArray_feature, numOfLabel0Samples,
-		label1SamplesArray_feature, numOfLabel1Samples, 		
-		featureMask);
+	for(int i=0;i<numOfFeatures;i++){		
+		AsynCalculateArgs* asynCalculateArgs = new AsynCalculateArgs;
+		
+		asynCalculateArgs->array1 = label1SamplesArray_feature[i];
+		asynCalculateArgs->array1_size = numOfLabel1Samples;
+		asynCalculateArgs->array2 = label0SamplesArray_feature[i];
+		asynCalculateArgs->array2_size = numOfLabel0Samples;
+		asynCalculateArgs->index = i;
+		asynCalculateArgs->score = &result->scores[i];
+		asynCalculateArgs->processor = this;
+		
+		Task* t = new Task(&asynCalculateAFeature, (void*) asynCalculateArgs);
+		tp.add_task(t);
+	}
+	
+	tp.waitAll();
+	tp.destroy_threadpool();
+	
+	/*
+	for(int i=0;i<numOfFeatures;i++){		
+		cout<<"Feature "<<i<<":"<<testResult->scores[i]<<std::endl;		
+	}*/
+	
+	t1.stop();	
+	
+	t1.printTimeSpent();
+	result->success = true;
+	result->startTime=t1.getStartTime();
+	result->endTime=t1.getStopTime();
 
 	/*
 	for(int i=0; i<numOfFeatures;i++){			

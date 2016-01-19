@@ -5,19 +5,8 @@
 #include <iostream>
 #include <pthread.h>
 #include <cstdlib>
-#include "threadpool/ThreadPool.h"
 
 using namespace std;
-
-struct PvalueArgs
-{
-	char *array1;
-	int array1_size;
-	char *array2;
-	int array2_size;	
-	int index;
-	double *result;
-};
 
 double calculate_Pvalue(char *array1, int array1_size, char *array2, int array2_size) {	
 			
@@ -86,72 +75,10 @@ double calculate_Pvalue(char *array1, int array1_size, char *array2, int array2_
 	}
 }
 
-void calculate_Pvalue(void* arg) {	
-	PvalueArgs* pvalueArgs = (PvalueArgs*) arg;
-	
-	char *array1 = pvalueArgs->array1;
-	int array1_size  = pvalueArgs->array1_size;
-	char *array2  = pvalueArgs->array2;
-	int array2_size  = pvalueArgs->array2_size;
-	
-	double score = calculate_Pvalue(array1, array1_size, array2, array2_size);
-	*pvalueArgs -> result = score;
-}
-
-Result* SimplePValueProcessor::asynCalculate(int numOfFeatures, 
-	char** label0SamplesArray_feature, int numOfLabel0Samples,
-	char** label1SamplesArray_feature, int numOfLabel1Samples,
-	bool* featureMask){
-
-	Timer t1("Processing");
-	t1.start();		
-	
-	int cores = getNumberOfCores();
-	int poolThreads = 2 * cores;
-	if (cores == 1){
-		poolThreads = 1;
-	}
-	
-	ThreadPool tp(poolThreads);
-	
-	int ret = tp.initialize_threadpool();
-	if (ret == -1) {
-		cerr << "Failed to initialize thread pool!" << endl;
-		exit(EXIT_FAILURE);
-	}
-
-	Result* testResult = new Result;
-	testResult->scores=new double[numOfFeatures];
-  
-	for(int i=0;i<numOfFeatures;i++){
-		PvalueArgs* pvalueArgs = new PvalueArgs;
-		
-		pvalueArgs->array1 = label1SamplesArray_feature[i];
-		pvalueArgs->array1_size = numOfLabel1Samples;
-		pvalueArgs->array2 = label0SamplesArray_feature[i];
-		pvalueArgs->array2_size = numOfLabel0Samples;
-		pvalueArgs->index = i;
-		pvalueArgs->result = &testResult->scores[i];
-		
-		Task* t = new Task(&calculate_Pvalue, (void*) pvalueArgs);
-		tp.add_task(t);
-	}
-
-	tp.waitAll();
-	tp.destroy_threadpool();
-	
-	/*
-	for(int i=0;i<numOfFeatures;i++){		
-		cout<<"Feature "<<i<<":"<<testResult->scores[i]<<std::endl;		
-	}*/
-	
-	t1.stop();	
-	
-	t1.printTimeSpent();
-	testResult->success = true;
-	testResult->startTime=t1.getStartTime();
-	testResult->endTime=t1.getStopTime();
-	
-	return testResult;	
-		
+void SimplePValueProcessor::calculateAFeature(
+	char* label0SamplesArray, int numOfLabel0Samples,
+	char* label1SamplesArray, int numOfLabel1Samples,
+	double* score
+	){	
+		*score = calculate_Pvalue(label1SamplesArray, numOfLabel1Samples, label0SamplesArray, numOfLabel0Samples);		
 }

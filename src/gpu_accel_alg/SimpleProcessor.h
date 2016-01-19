@@ -11,16 +11,15 @@ class SimpleProcessor : public Processor
 		void setNumberOfCores(int numberOfCores);
 		
 		Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);		
-	
-	//API without preprocessing for processors
-		virtual Result* asynCalculate(int numOfFeatures, 
-			char** label0SamplesArray_feature, int numOfLabel0Samples,
-			char** label1SamplesArray_feature, int numOfLabel1Samples, 			
-			bool* featureMask);
-	
+					
+		virtual void calculateAFeature(
+			char* label0SamplesArray, int numOfLabel0Samples,
+			char* label1SamplesArray, int numOfLabel1Samples,
+			double* score){};
+			
 	protected:
-		
-		int getNumberOfCores();
+	
+		int getNumberOfCores();		
 		
 };
 

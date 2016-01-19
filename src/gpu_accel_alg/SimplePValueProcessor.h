@@ -5,11 +5,11 @@
 class SimplePValueProcessor : public SimpleProcessor 
 {
 	public:
-		
-		Result* asynCalculate(int numOfFeatures, 
-			char** label0SamplesArray_feature, int numOfLabel0Samples,
-			char** label1SamplesArray_feature, int numOfLabel1Samples, 			
-			bool* featureMask);
+			
+		void calculateAFeature(
+			char* label0SamplesArray, int numOfLabel0Samples,
+			char* label1SamplesArray, int numOfLabel1Samples,
+			double* score);
 
 };
 
