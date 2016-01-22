@@ -1,6 +1,8 @@
 #include "gpu_accel_alg/SimpleMutualInformationProcessor.h"
 #include "gpu_accel_alg/SimplePValueProcessor.h"
 #include "gpu_accel_alg/GpuAcceleratedPValueProcessor.h"
+#include "gpu_accel_alg/SimpleTTestProcessor.h"
+#include "gpu_accel_alg/GpuAcceleratedTTestProcessor.h"
 #include "gpu_accel_alg/SimpleProcessor.h"
 #include "gpu_accel_alg/Processor.h"
 #include "gpu_accel_alg/GpuAcceleratedProcessor.h"
@@ -22,6 +24,11 @@
 using namespace TCLAP;
 using namespace std;
 
+const string T_Test = "t_test";
+const string P_Value = "pvalue";
+const string MutualInformation = "mutual_info";
+const string Relief = "relief";
+
 struct ProcessorCommand{
 	string algorithm;
 	bool gpuAcceleration;
@@ -29,6 +36,7 @@ struct ProcessorCommand{
 	int gpuDevice;
 	int gpuBlockThread;
 	int gpuDeviceStream;
+	bool enableGpuAccelerationThreadPool;
 	bool debug;
 };
 
@@ -77,10 +85,10 @@ Command parseCommand(int argc, char** argv){
 		CmdLine cmd("\"GPU Accelerated Feature Selection\" is powered by \"GPU Accelerated Data Mining Algorithm Library\". The library can boost the performance over 1000 times!. Source code is available at <https://github.com/leochu2010/CUHK-MscProject/>", ' ', "0.9");
 		
 		vector<string> algorithmArgAllowed;
-		algorithmArgAllowed.push_back("pvalue");
-		algorithmArgAllowed.push_back("mutual_info");
-		algorithmArgAllowed.push_back("relief");
-		algorithmArgAllowed.push_back("t_test");	
+		algorithmArgAllowed.push_back(P_Value);
+		algorithmArgAllowed.push_back(MutualInformation);
+		algorithmArgAllowed.push_back(Relief);
+		algorithmArgAllowed.push_back(T_Test);	
 		ValuesConstraint<string> algorithmArgAllowedVals( algorithmArgAllowed );
 		ValueArg<string> algorithmArg("a","algorithm","Data Mining Algorithm",true,"default",&algorithmArgAllowedVals);
 		cmd.add(algorithmArg);
@@ -108,9 +116,12 @@ Command parseCommand(int argc, char** argv){
 		ValuesConstraint<string> snpOrderArgAllowedVals( snpOrderArgAllowed );
 		ValueArg<string> snpOrderArg("","snporder","SNP score ordering",false,"asc",&snpOrderArgAllowedVals);
 		cmd.add(snpOrderArg);
-				
+		
 		SwitchArg gpuAccelerationArg("g","gpu","Enable GPU Acceleration",false);
 		cmd.add(gpuAccelerationArg);
+		
+		SwitchArg enableGpuAccelerationThreadPoolArg("p","threadpool","Enable running GPU Accelerated algorithms on multiple devices in threads",false);
+		cmd.add(enableGpuAccelerationThreadPoolArg);
 		
 		SwitchArg debugArg("","debug","Show debug message",false);
 		cmd.add(debugArg);
@@ -145,6 +156,7 @@ Command parseCommand(int argc, char** argv){
 		command.processorCommand.gpuDevice = gpuDeviceArg.getValue();
 		command.processorCommand.gpuBlockThread = gpuBlockThreadArg.getValue();
 		command.processorCommand.gpuDeviceStream = gpuDeviceStreamArg.getValue();
+		command.processorCommand.enableGpuAccelerationThreadPool = enableGpuAccelerationThreadPoolArg.getValue();
 		command.processorCommand.debug = debugArg.getValue();
 		
 		command.inputCommand.filePath = inputFileArg.getValue();
@@ -182,29 +194,42 @@ int main(int argc, char ** argv) {
 	
 }
 
-Processor* getProcessor(ProcessorCommand processorCommand)
-{	
-	
-	if (processorCommand.algorithm == "mutual_info"){
-		return new SimpleMutualInformationProcessor();
-		
-	}else if(processorCommand.algorithm == "pvalue"){
-		if(!processorCommand.gpuAcceleration){
-			SimpleProcessor* simpleProcessor = new SimplePValueProcessor();
-			simpleProcessor->setNumberOfCores(processorCommand.cpuCore);
-			simpleProcessor->setDebug(processorCommand.debug);
-			return simpleProcessor;
-		}else if(processorCommand.gpuAcceleration){
-			GpuAcceleratedProcessor* gpuAcceleratedProcessor = new GpuAcceleratedPValueProcessor();
-			gpuAcceleratedProcessor->setNumberOfThreadsPerBlock(processorCommand.gpuBlockThread);
-			gpuAcceleratedProcessor->setNumberOfDevice(processorCommand.gpuDevice);
-			gpuAcceleratedProcessor->setNumberOfStreamsPerDevice(processorCommand.gpuDeviceStream);
-			gpuAcceleratedProcessor->setDebug(processorCommand.debug);
-			return gpuAcceleratedProcessor;
-		}
+GpuAcceleratedProcessor* getGpuAcceleratedProcessor(string algorithm){
+	if(algorithm == P_Value){
+		return new GpuAcceleratedPValueProcessor();
+	}else if(algorithm == T_Test){
+		return new GpuAcceleratedTTestProcessor();
 	}
-	//return sth
 	return NULL;
+}
+
+SimpleProcessor* getSimpleProcessor(string algorithm){
+	if(algorithm == P_Value){
+		return new SimplePValueProcessor();
+	}else if(algorithm == T_Test){
+		return new SimpleTTestProcessor();
+	}else if(algorithm == MutualInformation){
+		return new SimpleMutualInformationProcessor();
+	}
+	return NULL;
+}
+
+Processor* getProcessor(ProcessorCommand processorCommand)
+{		
+	if(processorCommand.gpuAcceleration){
+		GpuAcceleratedProcessor* gpuAcceleratedProcessor = getGpuAcceleratedProcessor(processorCommand.algorithm);
+		gpuAcceleratedProcessor->setNumberOfThreadsPerBlock(processorCommand.gpuBlockThread);
+		gpuAcceleratedProcessor->setNumberOfDevice(processorCommand.gpuDevice);
+		gpuAcceleratedProcessor->setNumberOfStreamsPerDevice(processorCommand.gpuDeviceStream);
+		gpuAcceleratedProcessor->setDebug(processorCommand.debug);
+		return gpuAcceleratedProcessor;
+	}else{
+		SimpleProcessor* simpleProcessor = getSimpleProcessor(processorCommand.algorithm);
+		simpleProcessor->setNumberOfCores(processorCommand.cpuCore);
+		simpleProcessor->setDebug(processorCommand.debug);
+		return simpleProcessor;
+	}
+	
 }
 
 void processFile(Command command){
@@ -235,21 +260,21 @@ void processFile(Command command){
 	
 	int testNum = inputCommand.numOfTest;
 	if(testNum >0){
-					
+		
 		ofstream output;
 		if (!outputCommand.stdout){
 			output.open(outputCommand.outputFile.c_str());
 			output<<"means_ms=[];\n";		
 		}
-			
+		
 		long processingTime[testNum];
 		
-		
 		Processor* myProcessor = getProcessor(command.processorCommand);
+				
 		for(int i=0;i<testNum;i++){
 			Result* r = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);
-			processingTime[i] = r->endTime - r->startTime;				
-		}
+			processingTime[i] = r->endTime - r->startTime;
+		}		
 		exportPerformance(processingTime, testNum, "test", output, outputCommand);
 		
 		if (!outputCommand.stdout){

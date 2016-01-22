@@ -14,6 +14,8 @@ private:
 	int numberOfDevice;
 	
 	int numberOfStreamsPerDevice;
+	
+	bool threadPoolEnabled;
 			
 public:	
 	GpuAcceleratedProcessor();
@@ -23,6 +25,8 @@ public:
 	void setNumberOfDevice(int numberOfDevice);	
 	
 	void setNumberOfStreamsPerDevice(int numberOfStreams);
+	
+	void enableThreadPool();
 			
 	Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);
 	

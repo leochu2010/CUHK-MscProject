@@ -1,8 +1,8 @@
-#ifndef GPUACCELERATEDPVALUEPROCESSOR_H
-#define GPUACCELERATEDPVALUEPROCESSOR_H
+#ifndef GPUACCELERATEDTTESTPROCESSOR_H
+#define GPUACCELERATEDTTESTPROCESSOR_H
 
 #include "GpuAcceleratedProcessor.h"
-class GpuAcceleratedPValueProcessor : public GpuAcceleratedProcessor 
+class GpuAcceleratedTTestProcessor : public GpuAcceleratedProcessor 
 {
 	public:
 	

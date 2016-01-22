@@ -2,12 +2,12 @@
 
 ThreadPool::ThreadPool() : m_pool_size(DEFAULT_POOL_SIZE)
 {
-  cout << "Constructed ThreadPool of size " << m_pool_size << endl;
+  //cout << "Constructed ThreadPool of size " << m_pool_size << endl;
 }
 
 ThreadPool::ThreadPool(int pool_size) : m_pool_size(pool_size)
 {
-  cout << "Constructed ThreadPool of size " << m_pool_size << endl;
+  //cout << "Constructed ThreadPool of size " << m_pool_size << endl;
 }
 
 ThreadPool::~ThreadPool()
@@ -82,7 +82,7 @@ bool ThreadPool::hasTask(){
 
 void ThreadPool::waitAll(){
 	while(this->hasTask()){
-		sleep(0.01);
+		sleep(0.001);
 	}
 }
 

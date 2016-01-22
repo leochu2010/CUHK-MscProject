@@ -12,6 +12,11 @@ GpuAcceleratedProcessor::GpuAcceleratedProcessor(){
 	this->numberOfThreadsPerBlock = 0;
 	this->numberOfDevice = 0;
 	this->numberOfStreamsPerDevice = 1;
+	this->threadPoolEnabled = false;
+}
+
+void GpuAcceleratedProcessor::enableThreadPool(){
+	this->threadPoolEnabled = true;
 }
 
 void GpuAcceleratedProcessor::setNumberOfThreadsPerBlock(int numberOfThreadsPerBlock)
@@ -73,8 +78,8 @@ void createStream(void* arg) {
 	for(int i=0; i<numberOfStreamsPerDevice; i++){
 		streamResult[i] = cudaStreamCreate(&stream[i]);
 	}
-	
-	cout<<"created stream for device:"<<dev<<endl;
+		
+	//cout<<"created stream for device:"<<dev<<endl;	
 }
 
 struct AsynCalculateArgs{
@@ -88,6 +93,7 @@ struct AsynCalculateArgs{
 	int device;
 	cudaStream_t* stream;
 	GpuAcceleratedProcessor* processor;	
+	int numberOfStreamsPerDevice;
 };
 
 void asynCalculate(void* arg){
@@ -104,6 +110,11 @@ void asynCalculate(void* arg){
 		calculateArgs->device,
 		calculateArgs->stream
 	);
+	for(int i=0; i<calculateArgs->numberOfStreamsPerDevice; i++){
+		cudaError_t streamResult = cudaStreamDestroy(calculateArgs->stream[i]);	
+	}	
+	cudaSetDevice(calculateArgs->device);
+	cudaDeviceReset();
 }
 
 
@@ -163,8 +174,12 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 		createStreamArgs->dev = dev;
 		createStreamArgs->numberOfStreamsPerDevice = getNumberOfStreamsPerDevice();
 		
-		Task* t = new Task(&createStream, (void*) createStreamArgs);
-		tp.add_task(t);
+		if(threadPoolEnabled){
+			Task* t = new Task(&createStream, (void*) createStreamArgs);
+			tp.add_task(t);
+		}else{
+			createStream(createStreamArgs);
+		}
 	}
 	
 	//do sth else when waiting...
@@ -181,9 +196,12 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 			score[i][j] = (double*)malloc(featuresPerStream * sizeof(double));		
 		}
 	}
-		
-	cout<<"wait for steams ready"<<endl;
-	tp.waitAll();
+	if(isDebugEnabled()){	
+		cout<<"wait for streams ready"<<endl;
+	}
+	if(threadPoolEnabled){
+		tp.waitAll();
+	}
 	
 	Timer processing("Processing Time");
 	//note that creating stream first can save some time, can further investigate if needed
@@ -202,13 +220,19 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 		calculateArgs->device = dev;
 		calculateArgs->stream = stream[dev];
 		calculateArgs->processor = this;
+		calculateArgs->numberOfStreamsPerDevice = streamCount;
 		
 		//cout << streamResult[dev] <<endl;
-				
-		Task* t = new Task(&asynCalculate, (void*) calculateArgs);
-		tp.add_task(t);
+		if(threadPoolEnabled){
+			Task* t = new Task(&asynCalculate, (void*) calculateArgs);
+			tp.add_task(t);
+		}else{
+			asynCalculate(calculateArgs);
+		}
 	}		
-	tp.waitAll();
+	if(threadPoolEnabled){
+		tp.waitAll();		
+	}
 	tp.destroy_threadpool();
 	
 	Result* calResult = new Result;		
@@ -357,7 +381,7 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 		free(label0SamplesArray_device_stream_feature[i]);
 		free(label1SamplesArray_device_stream_feature[i]);	
 		free(featureMasksArray_device_stream_feature[i]);	
-		free(numberOfFeaturesPerStream[i]);		
+		free(numberOfFeaturesPerStream[i]);			
 	}
 	
 	
@@ -365,7 +389,7 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 	free(label1SamplesArray_device_stream_feature);
 	free(featureMasksArray_device_stream_feature);	
 	free(numberOfFeaturesPerStream);
-
+	
 	return result;
 }
 
