@@ -24,7 +24,7 @@ do
 	#total=0	
 	for (( t=$THREAD_FROM; t <= $THREAD_TO; t+=$THREAD_STEP ))
 	do   
-		RESULT=$(./../cal -algorithm pvalue -processor gpu -test 1 -device 1 -thread $t -file $INPUT_FILE -stdout processing_time)
+		RESULT=$(./../src/cal --algorithm pvalue --gpu --test 1 --device 1 --thread $t --file $INPUT_FILE --stdout --display_processing_time)
 		#echo -e "$(echo $RESULT | cut -d ' ' -f 2) \c"
 		processing_time=$(echo $RESULT | cut -d ' ' -f 2)
 		echo $processing_time >> ./tmp/$TOKEN$t

@@ -310,13 +310,16 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 			featureMasksArray_device_stream_feature[i][j] = (bool*)malloc(featuresPerStream * sizeof(bool));
 		}
 		numberOfFeaturesPerStream[i] = (int*)malloc(featuresPerStream*sizeof(int));
+		memset(numberOfFeaturesPerStream[i], 0, sizeof numberOfFeaturesPerStream[i]);
 	}
 
+	/*
 	for(int i=0;i<numberOfDevices;i++){
 		for(int j=0;j<numberOfStreams;j++){
 			numberOfFeaturesPerStream[i][j] = 0;
 		}
 	}
+	*/
 	
 	if(isDebugEnabled()){
 		cout << "featuresPerDevice="<<featuresPerDevice<<", featuresPerStream="<<featuresPerStream<<endl;

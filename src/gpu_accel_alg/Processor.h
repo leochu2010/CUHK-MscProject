@@ -4,6 +4,7 @@
 #include "Result.h"
 
 #define FEATURE_MASKED 2
+#define INVALID_FEATURE 3
 
 class Processor {	
 

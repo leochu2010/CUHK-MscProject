@@ -4,10 +4,13 @@
 #include "SimpleProcessor.h"
 class SimpleMutualInformationProcessor : public SimpleProcessor 
 {
-	private:
-			double calculateMutualInformation(double *dataVector, double *targetVector, int vectorLength);			
-	public:
-        	virtual Result* calculate(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);
+	private:			
+			double calculateMutualInformation(char *firstVector, char *secondVector, int vectorLength);
+	public:        				
+			void calculateAFeature(
+			char* label0SamplesArray, int numOfLabel0Samples,
+			char* label1SamplesArray, int numOfLabel1Samples,
+			double* score);
 
 };
 

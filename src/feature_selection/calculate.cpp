@@ -294,12 +294,14 @@ void exportPerformance(long processingTime[], int testNum, string name, ofstream
 	bool displayProcessingTime = outputCommand.displayProcessingTime;
 	
 	//cout<<"init:"<<processingTime[0]<<" ms"<<endl;	
-	if (!stdout){
-		//output<<name<<"_init_ms="<<processingTime[0]<<";\n";
-		output<<name<<"_processing_ms=[";
-	}else if (stdout){
-		//cout<<name<<"_init_ms="<<processingTime[0]<<";\n";
-		cout<<name<<"_processing_ms=[";
+	if (!displayProcessingTime){
+		if (!stdout){
+			//output<<name<<"_init_ms="<<processingTime[0]<<";\n";
+			output<<name<<"_processing_ms=[";
+		}else if (stdout){
+			//cout<<name<<"_init_ms="<<processingTime[0]<<";\n";
+			cout<<name<<"_processing_ms=[";
+		}
 	}
 	
 	float total=0;
