@@ -1,12 +1,12 @@
-#ifndef GPUACCELERATEDTTESTPROCESSOR_H
-#define GPUACCELERATEDTTESTPROCESSOR_H
+#ifndef GPUACCELERATEDMUTUALINFORMATIONPROCESSOR_H
+#define GPUACCELERATEDMUTUALINFORMATIONPROCESSOR_H
 
 #include "GpuAcceleratedProcessor.h"
 #include <string>
 
 using namespace std;
 
-class GpuAcceleratedTTestProcessor : public GpuAcceleratedProcessor 
+class GpuAcceleratedMutualInformationProcessor : public GpuAcceleratedProcessor 
 {
 	public:
 	

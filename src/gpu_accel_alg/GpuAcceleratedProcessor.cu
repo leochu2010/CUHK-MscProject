@@ -3,6 +3,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <iostream>
+#include <sstream>
+#include <string>
 #include "threadpool/ThreadPool.h"
 #include "utils/Timer.h"
 
@@ -94,6 +96,8 @@ struct AsynCalculateArgs{
 	cudaStream_t* stream;
 	GpuAcceleratedProcessor* processor;	
 	int numberOfStreamsPerDevice;
+	string* errorMessage;
+	bool* success;
 };
 
 void asynCalculate(void* arg){
@@ -108,7 +112,9 @@ void asynCalculate(void* arg){
 		calculateArgs->featureMasksArray_stream_feature,
 		calculateArgs->score,
 		calculateArgs->device,
-		calculateArgs->stream
+		calculateArgs->stream,
+		calculateArgs->success,
+		calculateArgs->errorMessage
 	);
 	for(int i=0; i<calculateArgs->numberOfStreamsPerDevice; i++){
 		cudaError_t streamResult = cudaStreamDestroy(calculateArgs->stream[i]);	
@@ -122,7 +128,8 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 	char*** label0SamplesArray_device_stream_feature, int numOfLabel0Samples,
 	char*** label1SamplesArray_device_stream_feature, int numOfLabel1Samples, 
 	int** numberOfFeaturesPerStream,
-	bool*** featureMasksArray_device_stream_feature){
+	bool*** featureMasksArray_device_stream_feature,
+	bool** successPerDevice, string** errorMessagePerDevice){
 		
 	/*
 	Step 1:
@@ -221,6 +228,8 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 		calculateArgs->stream = stream[dev];
 		calculateArgs->processor = this;
 		calculateArgs->numberOfStreamsPerDevice = streamCount;
+		calculateArgs->success = successPerDevice[dev];
+		calculateArgs->errorMessage = errorMessagePerDevice[dev];
 		
 		//cout << streamResult[dev] <<endl;
 		if(threadPoolEnabled){
@@ -229,13 +238,13 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 		}else{
 			asynCalculate(calculateArgs);
 		}
-	}		
+	}
 	if(threadPoolEnabled){
 		tp.waitAll();		
 	}
 	tp.destroy_threadpool();
 	
-	Result* calResult = new Result;		
+	Result* calResult = new Result;
 	calResult->scores = new double[numOfFeatures];
 	
 	for(int i=0;i<numOfFeatures;i++){
@@ -246,12 +255,12 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 		if(featureMasksArray_device_stream_feature[dev][streamId][featureId] != true){
 			calResult->scores[i] = FEATURE_MASKED;
 		}else{
-			calResult->scores[i] = score[dev][streamId][featureId];					
+			calResult->scores[i] = score[dev][streamId][featureId];
 		}
 		//cout<<dev<<","<<featureIdx<<","<<i<<":"<<score[dev][featureIdx]<<endl;
 	}	
 		
-	for(int i=0; i<numberOfDevices; i++) {
+	for(int i=0; i<numberOfDevices; i++) {		
 		for(int j=0; j<numberOfStreams; j++){
 			free(score[i][j]);
 		}
@@ -264,6 +273,18 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 	calResult->startTime=processing.getStartTime();
 	calResult->endTime=processing.getStopTime();	
 	calResult->success=true;
+	
+	stringstream ss;
+	
+	for(int i=0; i<numberOfDevices; i++) {
+		if (successPerDevice[i] == false){
+			calResult->success = false;
+			ss << "Device" << i << ": " << errorMessagePerDevice[i]<<"\n";
+		}
+	}
+	if(!calResult->success){
+		calResult->errorMessage = ss.str();
+	}
 	return calResult;	
 			
 	/*
@@ -298,12 +319,15 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 			
 	char ***label0SamplesArray_device_stream_feature = (char***)malloc(numberOfDevices * sizeof(char**));
 	char ***label1SamplesArray_device_stream_feature = (char***)malloc(numberOfDevices * sizeof(char**));
-	bool ***featureMasksArray_device_stream_feature = (bool***)malloc(numberOfDevices * sizeof(bool**));
+	bool ***featureMasksArray_device_stream_feature = (bool***)malloc(numberOfDevices * sizeof(bool**));	
 	int **numberOfFeaturesPerStream = (int**)malloc(numberOfDevices * sizeof(int*));	
+	bool **successPerDevice = (bool**)malloc(numberOfDevices * sizeof(bool*));	
+	string **errorMessagePerDevice = (string**)malloc(numberOfDevices * sizeof(string*));
+	
 	for(int i=0; i<numberOfDevices; i++){
 		label0SamplesArray_device_stream_feature[i] = (char**)malloc(featuresPerDevice * sizeof(char*));
 		label1SamplesArray_device_stream_feature[i] = (char**)malloc(featuresPerDevice * sizeof(char*));		
-		featureMasksArray_device_stream_feature[i] = (bool**)malloc(featuresPerDevice * sizeof(bool*));		
+		featureMasksArray_device_stream_feature[i] = (bool**)malloc(featuresPerDevice * sizeof(bool*));				
 		for(int j=0; j<numberOfStreams;j++){
 			label0SamplesArray_device_stream_feature[i][j] = (char*)malloc(featuresPerStream * numOfLabel0Samples * sizeof(char));
 			label1SamplesArray_device_stream_feature[i][j] = (char*)malloc(featuresPerStream * numOfLabel1Samples * sizeof(char));
@@ -311,6 +335,10 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 		}
 		numberOfFeaturesPerStream[i] = (int*)malloc(featuresPerStream*sizeof(int));
 		memset(numberOfFeaturesPerStream[i], 0, sizeof numberOfFeaturesPerStream[i]);
+		
+		successPerDevice[i] = (bool*)malloc(numberOfDevices * sizeof(bool));
+				
+		errorMessagePerDevice[i] = (string*)malloc(numberOfDevices * sizeof(string));				
 	}
 
 	/*
@@ -366,7 +394,8 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 		label0SamplesArray_device_stream_feature, numOfLabel0Samples,
 		label1SamplesArray_device_stream_feature, numOfLabel1Samples, 
 		numberOfFeaturesPerStream,
-		featureMasksArray_device_stream_feature);
+		featureMasksArray_device_stream_feature,
+		successPerDevice, errorMessagePerDevice);
 
 	/*
 	for(int i=0; i<numOfFeatures;i++){			
@@ -379,12 +408,14 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 		for(int j=0; j<numberOfStreams; j++){
 			free(label0SamplesArray_device_stream_feature[i][j]);
 			free(label1SamplesArray_device_stream_feature[i][j]);
-			free(featureMasksArray_device_stream_feature[i][j]);	
+			free(featureMasksArray_device_stream_feature[i][j]);				
 		}
 		free(label0SamplesArray_device_stream_feature[i]);
 		free(label1SamplesArray_device_stream_feature[i]);	
 		free(featureMasksArray_device_stream_feature[i]);	
-		free(numberOfFeaturesPerStream[i]);			
+		free(numberOfFeaturesPerStream[i]);	
+		free(successPerDevice[i]);
+		free(errorMessagePerDevice[i]);
 	}
 	
 	
@@ -392,6 +423,8 @@ Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, 
 	free(label1SamplesArray_device_stream_feature);
 	free(featureMasksArray_device_stream_feature);	
 	free(numberOfFeaturesPerStream);
+	free(successPerDevice);
+	free(errorMessagePerDevice);
 	
 	return result;
 }

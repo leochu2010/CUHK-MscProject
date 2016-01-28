@@ -19,13 +19,16 @@ __global__ void calculate_ttest(
 	int device);
 
 void GpuAcceleratedTTestProcessor::calculateOnStream(int* numberOfFeaturesPerStream,
-		char** label0SamplesArray_stream_feature, int numOfLabel0Samples,
-		char** label1SamplesArray_stream_feature, int numOfLabel1Samples,
-		bool** featureMasksArray_stream_feature,
-		double** score,
-		int device,
-		cudaStream_t* streams){
+	char** label0SamplesArray_stream_feature, int numOfLabel0Samples,
+	char** label1SamplesArray_stream_feature, int numOfLabel1Samples,
+	bool** featureMasksArray_stream_feature,
+	double** score,
+	int device,
+	cudaStream_t* streams,
+	bool* success, string* errorMessage){
 			
+	*success = true;
+	
 	/*
 	if(device == 1){
 		cout<<"[GpuAcceleratedTTestProcessor]"<<"numberOfFeaturesPerStream[0]="<<numberOfFeaturesPerStream[0]<<", label0SamplesArray_stream_feature[0][0]="<<0+label0SamplesArray_stream_feature[0][0]<<endl;	
@@ -125,10 +128,11 @@ __global__ void calculate_ttest(
 	__shared__ float variance1;
 	__shared__ float variance2;
 		
-	if(threadIdx.x == 0){
-		if (d_featureMask[idx] != true){			
-			return;
-		}
+	if (d_featureMask[idx] != true){			
+		return;
+	}
+	
+	if(threadIdx.x == 0){	
 		mean1=0;
 		mean2=0;
 		variance1=0;

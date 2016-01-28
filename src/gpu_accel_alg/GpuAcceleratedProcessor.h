@@ -4,7 +4,9 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include "Processor.h"
+#include <string.h>
 
+using namespace std;
 
 class GpuAcceleratedProcessor : public Processor 
 {
@@ -37,7 +39,9 @@ public:
 		bool** featureMasksArray_stream_feature,		
 		double** score,
 		int device,
-		cudaStream_t* streams){};		
+		cudaStream_t* streams,
+		bool* success, string* errorMessage
+		){};		
 		
 protected:
 
@@ -51,7 +55,8 @@ protected:
 		char*** label0Samples_device_stream_feature, int numOfLabel0Samples,
 		char*** label1Samples_device_stream_feature, int numOfLabel1Samples, 
 		int** numberOfFeaturesPerStream,
-		bool*** featureMasksArray_device_stream_feature);
+		bool*** featureMasksArray_device_stream_feature,		
+		bool** successPerDevice, string** errorMessagePerDevice);
 		
 };
 

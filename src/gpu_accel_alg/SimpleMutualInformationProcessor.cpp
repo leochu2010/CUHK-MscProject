@@ -43,7 +43,6 @@ int normaliseArray(char *inputVector, int *outputVector, int vectorLength)
 }/*normaliseArray(double*,double*,int)*/
 
 
-
 double SimpleMutualInformationProcessor::calculateMutualInformation(char *firstVector, char *secondVector, int vectorLength)
 {
   double mutualInformation = 0.0;
@@ -122,46 +121,33 @@ double SimpleMutualInformationProcessor::calculateMutualInformation(char *firstV
   secondNormalisedVector = NULL;
   firstStateCounts = NULL;
   secondStateCounts = NULL;
-  jointStateCounts = NULL;
+  jointStateCounts = NULL;  
     
-  double *jointProbabilityVector;
-  int numJointStates;
-  double *firstProbabilityVector;
-  int numFirstStates;
-  double *secondProbabilityVector;
-  
-	
-  jointProbabilityVector = jointStateProbs;
-  numJointStates = jointNumStates;
-  firstProbabilityVector = firstStateProbs;
-  numFirstStates = firstNumStates;
-  secondProbabilityVector = secondStateProbs;
-  
   /*
   ** I(X;Y) = sum sum p(xy) * log (p(xy)/p(x)p(y))
   */
-  for (i = 0; i < numJointStates; i++)
+  for (i = 0; i < jointNumStates; i++)
   {
-    firstIndex = i % numFirstStates;
-    secondIndex = i / numFirstStates;
+    firstIndex = i % firstNumStates;
+    secondIndex = i / firstNumStates;
     
-    if ((jointProbabilityVector[i] > 0) && (firstProbabilityVector[firstIndex] > 0) && (secondProbabilityVector[secondIndex] > 0))
+    if ((jointStateProbs[i] > 0) && (firstStateProbs[firstIndex] > 0) && (secondStateProbs[secondIndex] > 0))
     {
       /*double division is probably more stable than multiplying two small numbers together
-      ** mutualInformation += jointProbabilityVector[i] * log(jointProbabilityVector[i] / (firstProbabilityVector[firstIndex] * secondProbabilityVector[secondIndex]));
+      ** mutualInformation += jointStateProbs[i] * log(jointStateProbs[i] / (firstStateProbs[firstIndex] * secondStateProbs[secondIndex]));
       */
-      mutualInformation += jointProbabilityVector[i] * log(jointProbabilityVector[i] / firstProbabilityVector[firstIndex] / secondProbabilityVector[secondIndex]);
+      mutualInformation += jointStateProbs[i] * log(jointStateProbs[i] / firstStateProbs[firstIndex] / secondStateProbs[secondIndex]);
     }
   }
   
   //mutualInformation /= log(2.0);
   
-  free(firstProbabilityVector);
-  firstProbabilityVector = NULL;
-  free(secondProbabilityVector);
-  secondProbabilityVector = NULL;
-  free(jointProbabilityVector);
-  jointProbabilityVector = NULL;
+  free(firstStateProbs);
+  firstStateProbs = NULL;
+  free(secondStateProbs);
+  secondStateProbs = NULL;
+  free(jointStateProbs);
+  jointStateProbs = NULL;
   
   return mutualInformation;
 }

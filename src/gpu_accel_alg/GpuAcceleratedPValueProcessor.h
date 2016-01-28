@@ -2,6 +2,10 @@
 #define GPUACCELERATEDPVALUEPROCESSOR_H
 
 #include "GpuAcceleratedProcessor.h"
+#include <string>
+
+using namespace std;
+
 class GpuAcceleratedPValueProcessor : public GpuAcceleratedProcessor 
 {
 	public:
@@ -12,7 +16,8 @@ class GpuAcceleratedPValueProcessor : public GpuAcceleratedProcessor
 			bool** featureMasksArray_stream_feature,		
 			double** score,
 			int device,
-			cudaStream_t* streams);
+			cudaStream_t* streams,
+			bool* success, string* errorMessage);
 
 };
 
