@@ -22,11 +22,27 @@ __global__ void calculateMutualInformation(
 	//idx is feature index of a block on this device
 	int idx = gridDim.x * blockIdx.x + blockIdx.y;
 	
-	if (idx >= numOfFeatures){
+	/*
+	if(threadIdx.x == 0){
+		printf("idx=%d, blockDim.x=%d, threadIdx.x=%d",idx, blockDim.x, threadIdx.x);
+	}
+	*/
+	
+	if (idx >= numOfFeatures){		
+		/*
+		if(threadIdx.x == 0){
+			printf("device[%d]:idx=%d >= %d \n",device,idx,numOfFeatures);
+		}		
+		*/
 		return;
 	}
 	
 	if (d_featureMask[idx] != true){			
+		/*
+		if(threadIdx.x == 0){
+			printf("device[%d]:idx=%d, d_featureMask=false\n",device,idx);
+		}
+		*/
 		return;
 	}
 	
@@ -41,6 +57,10 @@ __global__ void calculateMutualInformation(
 	
 	if(threadIdx.x == 0){
 		mutualInformation= 0.0;
+		firstVectorMinVal = d_firstVector[vectorLength * idx];
+		firstVectorMaxVal = d_firstVector[vectorLength * idx];
+		secondVectorMinVal = d_secondVector[vectorLength * idx];
+		secondVectorMaxVal = d_secondVector[vectorLength * idx];
 	}
 	
 	__syncthreads();
@@ -50,12 +70,12 @@ __global__ void calculateMutualInformation(
 			int firstVectorCurrentValue = (int)(d_firstVector[vectorLength * idx + i]);
 			atomicMin(&firstVectorMinVal, firstVectorCurrentValue);
 			atomicMax(&firstVectorMaxVal, firstVectorCurrentValue);
-			d_firstVector[i] = firstVectorCurrentValue;
+			d_firstVector[vectorLength * idx + i] = firstVectorCurrentValue;
 			
 			int secondVectorCurrentValue = (int)(d_secondVector[vectorLength * idx + i]);
 			atomicMin(&secondVectorMinVal, secondVectorCurrentValue);
 			atomicMax(&secondVectorMaxVal, secondVectorCurrentValue);
-			d_secondVector[i] = secondVectorCurrentValue;
+			d_secondVector[vectorLength * idx + i] = secondVectorCurrentValue;
 		}		
 	}
 	
@@ -64,45 +84,59 @@ __global__ void calculateMutualInformation(
 		firstNumStates = (firstVectorMaxVal - firstVectorMinVal) + 1;
 		secondNumStates = (secondVectorMaxVal - secondVectorMinVal) + 1;
 		jointNumStates = firstNumStates * secondNumStates;
-		if(firstNumStates > 10){
+		if(firstNumStates > 5){
 			d_excpetion[0] = -1;
 		}
-		if(secondNumStates > 10){
+		if(secondNumStates > 5){
 			d_excpetion[0] = -2;
 		}
-		if(jointNumStates > 10){
+		if(jointNumStates > 25){
 			d_excpetion[0] = -3;
 		}
+				
+		/*
+		if(idx==0){
+			printf("device[%d]:idx=%d, d_excpetion = %d < 0, firstNumStates=%d, secondNumStates=%d, jointNumStates=%d \n",device,idx,d_excpetion[0],firstNumStates,secondNumStates,jointNumStates);
+		}
+		*/
 	}
 	
 	if(vectorLengthPerThread*(threadIdx.x) < vectorLength){
 		for(int i=vectorLengthPerThread*(threadIdx.x); i<vectorLengthPerThread*(threadIdx.x+1) && i<vectorLength; i++){    
-			d_firstVector[i] = d_firstVector[i] - firstVectorMinVal;
-			d_secondVector[i] = d_secondVector[i] - secondVectorMinVal;
+			d_firstVector[vectorLength * idx + i] = d_firstVector[vectorLength * idx + i] - firstVectorMinVal;
+			d_secondVector[vectorLength * idx + i] = d_secondVector[vectorLength * idx + i] - secondVectorMinVal;
 		}
 	}
 	
 	__syncthreads();
 	
 	if(d_excpetion[0] < 0){
+		/*
+		if(threadIdx.x == 0){
+			printf("device[%d]:idx=%d, d_excpetion = %d < 0, firstNumStates=%d, secondNumStates=%d, jointNumStates=%d \n",device,idx,d_excpetion[0],firstNumStates,secondNumStates,jointNumStates);
+		}
+		*/
 		return;
 	}	
 		
-	__shared__ int firstStateCounts[10];
-	__shared__ int secondStateCounts[10];
-	__shared__ int jointStateCounts[10];
+	__shared__ int firstStateCounts[5];
+	__shared__ int secondStateCounts[5];
+	__shared__ int jointStateCounts[25];
 	
-	__shared__ double firstStateProbs[10];
-	__shared__ double secondStateProbs[10];
-	__shared__ double jointStateProbs[10];
+	__shared__ double firstStateProbs[5];
+	__shared__ double secondStateProbs[5];
+	__shared__ double jointStateProbs[25];
 	
-	if(threadIdx.x < 10){
+	if(threadIdx.x < 5){
 		firstStateCounts[threadIdx.x] = 0;
-		secondStateCounts[threadIdx.x] = 0;
-		jointStateCounts[threadIdx.x] = 0;
+		secondStateCounts[threadIdx.x] = 0;		
 	
 		firstStateProbs[threadIdx.x] = 0.0;
 		secondStateProbs[threadIdx.x] = 0.0;
+	}
+	
+	if(threadIdx.x < 25){
+		jointStateCounts[threadIdx.x] = 0;
 		jointStateProbs[threadIdx.x] = 0.0;
 	}
 			
@@ -111,9 +145,9 @@ __global__ void calculateMutualInformation(
 	/* Optimised for number of FP operations now O(states) instead of O(vectorLength) */
 	if(vectorLengthPerThread*(threadIdx.x) < vectorLength){		
 		for(int i=vectorLengthPerThread*(threadIdx.x); i<vectorLengthPerThread*(threadIdx.x+1) && i<vectorLength; i++){
-			atomicAdd(&firstStateCounts[d_firstVector[i]], 1);
-			atomicAdd(&secondStateCounts[d_secondVector[i]], 1);
-			atomicAdd(&jointStateCounts[d_secondVector[i] * firstNumStates + d_firstVector[i]], 1);
+			atomicAdd(&firstStateCounts[d_firstVector[vectorLength * idx + i]], 1);
+			atomicAdd(&secondStateCounts[d_secondVector[vectorLength * idx + i]], 1);
+			atomicAdd(&jointStateCounts[d_secondVector[vectorLength * idx + i] * firstNumStates + d_firstVector[vectorLength * idx + i]], 1);
 		}		
 	}	
 	
@@ -173,7 +207,10 @@ __global__ void calculateMutualInformation(
 	__syncthreads();
 	
 	if (threadIdx.x == 0){
-		d_score[idx] = mutualInformation;
+		d_score[idx] = mutualInformation;		
+		/*
+		printf("device[%d]:d_score[%d]=%f\n",device,idx,mutualInformation);
+		*/
 	}
 }
 
@@ -198,6 +235,9 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 		}
 		*success = false;
 		*errorMessage = "numbers of label 0 and 1 samples are not the same";
+		if(this->isDebugEnabled()){
+			cout << "return: numbers of label 0 and 1 samples are not the same"<<endl;
+		}
 		return;
 	}
 			
@@ -217,7 +257,7 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 	double *d_score[streamCount];
 	bool *d_featureMask[streamCount];
 	int *d_exception[streamCount];
-	
+		
 	if(this->isDebugEnabled()){
 		cout << "copy to GPU"<<endl;
 	}
@@ -225,17 +265,19 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 	cudaSetDevice(device);
 	
 	int maxFeaturesPerStream = numberOfFeaturesPerStream[0];
+	
+	int **exception = (int**)malloc(streamCount * sizeof(int*));	
 
-	for(int i=0; i<streamCount; i++){
+	for(int i=0; i<streamCount; i++){		
 		cudaMalloc(&d_label0Array[i],maxFeaturesPerStream*numOfLabel0Samples*sizeof(char));
 		cudaMalloc(&d_label1Array[i],maxFeaturesPerStream*numOfLabel1Samples*sizeof(char));
 		cudaMalloc(&d_score[i],maxFeaturesPerStream*sizeof(double));
 		cudaMalloc(&d_featureMask[i],maxFeaturesPerStream*sizeof(bool));
-		cudaMalloc(&d_exception[i],sizeof(int));
+		cudaMalloc(&d_exception[i],sizeof(int));		
+		
+		exception[i] = (int*)malloc(sizeof(int));		
+		exception[i][0] = 0;
 	}	
-	
-	int *exception[streamCount];
-	memset(exception, 0, sizeof streamCount);
 	
 	for(int i=0; i<streamCount; i++){
 		int features = numberOfFeaturesPerStream[i];
@@ -248,7 +290,7 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 		
 	int grid2d = (int)ceil(pow(maxFeaturesPerStream,1/2.));	
 	if(this->isDebugEnabled()){
-		cout<<"maxFeaturesPerStream="<<maxFeaturesPerStream<<",grid2d="<<grid2d<<",numOfLabel0Samples="<<numOfLabel0Samples<<",numOfLabel1Samples="<<numOfLabel1Samples<<endl;
+		cout<<"maxFeaturesPerStream="<<maxFeaturesPerStream<<",grid2d="<<grid2d<<",numOfLabel0Samples="<<numOfLabel0Samples<<",numOfLabel1Samples="<<numOfLabel1Samples<<",threadSize="<<threadSize<<endl;
 	}
 	
 	dim3 gridSize(grid2d,grid2d);
@@ -271,15 +313,23 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 	for(int i=0; i<streamCount; i++){
 		int features = numberOfFeaturesPerStream[i];
 		cudaMemcpyAsync(score[i], d_score[i], features*sizeof(double), cudaMemcpyDeviceToHost,streams[i]);
-		cudaMemcpyAsync(exception[i], d_exception[i], features*sizeof(int), cudaMemcpyDeviceToHost,streams[i]);
+		cudaMemcpyAsync(exception[i], d_exception[i], features*sizeof(int), cudaMemcpyDeviceToHost,streams[i]);		
+	}
+	if(this->isDebugEnabled()){		
+		cout<<"copied data from device to host"<<endl;
 	}
 
 	cudaDeviceSynchronize();
 		
 	for(int i=0; i<streamCount; i++){
-		if(d_exception[i][0] < 0){
+		
+		if(exception[i][0] < 0){
 			*success = false;
 			*errorMessage = "firstNumStates/secondNumStates/jointNumStates is too big";
+			if(this->isDebugEnabled()){
+				cout<<"exception[i]"<<exception[i][0]<<endl;
+				cout<<"error found"<<endl;
+			}
 		}
 	}
 	//free cuda memory	
@@ -292,8 +342,8 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 		cudaFree(d_label0Array[i]);
 		cudaFree(d_score[i]);
 		cudaFree(d_featureMask[i]);		
-		cudaFree(d_exception[i]);
+		cudaFree(d_exception[i]);		
 		free(exception[i]);
-	}
+	}	
 	free(exception);
 }	

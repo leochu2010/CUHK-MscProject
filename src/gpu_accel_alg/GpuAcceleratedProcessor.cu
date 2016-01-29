@@ -254,10 +254,10 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 		int featureId = devRemainder % featuresPerStream;
 		if(featureMasksArray_device_stream_feature[dev][streamId][featureId] != true){
 			calResult->scores[i] = FEATURE_MASKED;
-		}else{
+		}else{			
 			calResult->scores[i] = score[dev][streamId][featureId];
 		}
-		//cout<<dev<<","<<featureIdx<<","<<i<<":"<<score[dev][featureIdx]<<endl;
+		//cout<<dev<<","<<featureId<<","<<i<<":"<<score[dev][streamId][featureId]<<endl;
 	}	
 		
 	for(int i=0; i<numberOfDevices; i++) {		
@@ -280,6 +280,9 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 		if (successPerDevice[i] == false){
 			calResult->success = false;
 			ss << "Device" << i << ": " << errorMessagePerDevice[i]<<"\n";
+			if(isDebugEnabled()){
+				cout<<"Device" << i << ": " << errorMessagePerDevice[i]<<endl;
+			}
 		}
 	}
 	if(!calResult->success){

@@ -1,4 +1,5 @@
 #include "gpu_accel_alg/SimpleMutualInformationProcessor.h"
+#include "gpu_accel_alg/GpuAcceleratedMutualInformationProcessor.h"
 #include "gpu_accel_alg/SimplePValueProcessor.h"
 #include "gpu_accel_alg/GpuAcceleratedPValueProcessor.h"
 #include "gpu_accel_alg/SimpleTTestProcessor.h"
@@ -199,6 +200,8 @@ GpuAcceleratedProcessor* getGpuAcceleratedProcessor(string algorithm){
 		return new GpuAcceleratedPValueProcessor();
 	}else if(algorithm == T_Test){
 		return new GpuAcceleratedTTestProcessor();
+	}else if(algorithm == MutualInformation){
+		return new GpuAcceleratedMutualInformationProcessor();
 	}
 	return NULL;
 }
