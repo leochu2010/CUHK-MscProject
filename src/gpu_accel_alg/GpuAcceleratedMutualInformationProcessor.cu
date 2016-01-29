@@ -332,6 +332,7 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 			}
 		}
 	}
+		
 	//free cuda memory	
 	//destroy streams
 	for(int i=0; i<streamCount; i++){

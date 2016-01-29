@@ -275,7 +275,7 @@ void processFile(Command command){
 		Processor* myProcessor = getProcessor(command.processorCommand);
 				
 		for(int i=0;i<testNum;i++){
-			Result* r = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);
+			Result* r = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);			
 			processingTime[i] = r->endTime - r->startTime;
 		}		
 		exportPerformance(processingTime, testNum, "test", output, outputCommand);
@@ -287,6 +287,11 @@ void processFile(Command command){
 	} else {
 		Processor* myProcessor = getProcessor(command.processorCommand);
 		Result* result = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);		
+		//cout<<result->success<<endl;
+		if (!result->success){
+			cout<<result->errorMessage<<endl;
+			return;
+		}
 		exportResult(arff, result, command);
 	}
 }
@@ -556,6 +561,10 @@ void processFolder(Command command)
 			}
 						
 			Result* r = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);
+			if (!r->success){
+				cout<<r->errorMessage<<endl;
+				return;
+			}
 			
 			
 			float sortScores[arff->FeatureCount];

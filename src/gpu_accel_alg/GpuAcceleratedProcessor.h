@@ -56,7 +56,7 @@ protected:
 		char*** label1Samples_device_stream_feature, int numOfLabel1Samples, 
 		int** numberOfFeaturesPerStream,
 		bool*** featureMasksArray_device_stream_feature,		
-		bool** successPerDevice, string** errorMessagePerDevice);
+		bool* successPerDevice, string* errorMessagePerDevice);
 		
 };
 
