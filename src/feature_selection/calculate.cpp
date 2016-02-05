@@ -28,7 +28,8 @@ using namespace std;
 const string T_Test = "t_test";
 const string P_Value = "pvalue";
 const string MutualInformation = "mutual_info";
-const string Relief = "relief";
+const string Relieff = "relieff";
+const string TunedRelieff = "tuned_relieff";
 
 struct ProcessorCommand{
 	string algorithm;
@@ -46,6 +47,8 @@ struct InputCommand{
 	string folderPath;
 	int numOfTest;
 	int features;
+	int multiplyFeatures;
+	int multiplySamples;
 };
 
 struct OutputCommand{
@@ -88,8 +91,9 @@ Command parseCommand(int argc, char** argv){
 		vector<string> algorithmArgAllowed;
 		algorithmArgAllowed.push_back(P_Value);
 		algorithmArgAllowed.push_back(MutualInformation);
-		algorithmArgAllowed.push_back(Relief);
+		algorithmArgAllowed.push_back(Relieff);
 		algorithmArgAllowed.push_back(T_Test);	
+		algorithmArgAllowed.push_back(TunedRelieff);
 		ValuesConstraint<string> algorithmArgAllowedVals( algorithmArgAllowed );
 		ValueArg<string> algorithmArg("a","algorithm","Data Mining Algorithm",true,"default",&algorithmArgAllowedVals);
 		cmd.add(algorithmArg);
@@ -107,6 +111,12 @@ Command parseCommand(int argc, char** argv){
 		ValueArg<int> numOfTestArg("","test","Number of test to be performed",false,0,"int");
 		cmd.add(numOfTestArg);
 		
+		ValueArg<int> multiplyFeaturesArg("","multiply_features","Increase data size by multiplying the number of features",false,1,"int");
+		cmd.add(multiplyFeaturesArg);
+		
+		ValueArg<int> multiplySamplesArg("","multiply_samples","Increase data size by multiplying the number of samples",false,1,"int");
+		cmd.add(multiplySamplesArg);
+				
 		ValueArg<int> featuresArg("","feature","Number of features",false,0,"int");
 		cmd.add(featuresArg);
 		
@@ -164,6 +174,8 @@ Command parseCommand(int argc, char** argv){
 		command.inputCommand.folderPath = inputFolderArg.getValue();
 		command.inputCommand.features = featuresArg.getValue();
 		command.inputCommand.numOfTest = numOfTestArg.getValue();
+		command.inputCommand.multiplyFeatures = multiplyFeaturesArg.getValue();
+		command.inputCommand.multiplySamples = multiplySamplesArg.getValue();
 		
 		command.outputCommand.stdout = stdoutArg.getValue();
 		command.outputCommand.format = outputFormatArg.getValue();
@@ -243,10 +255,71 @@ void processFile(Command command){
 	SNPArffParser parser;
 	cout << inputCommand.filePath;
 	
+	//read data
 	StructArff* arff=parser.ParseSNPArffFile(inputCommand.filePath);	
 		
-	//process
+	//incrase data size by multiplying features or samples
+	int multiplyFeatures = inputCommand.multiplyFeatures;
+	int multiplySamples = inputCommand.multiplySamples;
 	
+	if(multiplyFeatures >= 1 || multiplySamples >= 1){
+		int newFeatureCount = arff->FeatureCount * multiplyFeatures;
+		int newSampleCount = arff->SampleCount * multiplySamples;
+		int oldFeatureCount = arff->FeatureCount;
+		int oldSampleCount = arff->SampleCount;
+		
+		char* newMatrix = new char[newFeatureCount * newSampleCount];
+		char* newLabels = new char[newSampleCount];
+		char** newSNPNames = new char*[newFeatureCount];
+		
+		for(int mf=0; mf<multiplyFeatures; mf++){
+			for(int f=0; f<oldFeatureCount; f++){	
+				int newf = mf*oldFeatureCount + f;
+				for(int ms=0; ms<multiplySamples; ms++){
+					for(int s=0; s<oldSampleCount; s++){
+						int newi = (ms*oldSampleCount + s) * newFeatureCount + newf;
+						int oldi = s*oldFeatureCount + f;
+						newMatrix[newi] = arff->Matrix[oldi];
+					}
+				}
+				
+				newSNPNames[newf]=arff->SNPNames[f];
+			}			
+		}		
+				
+		for(int ms=0; ms<multiplySamples; ms++){
+			for(int s=0; s<oldSampleCount; s++){
+				newLabels[ms*oldSampleCount+s] = arff->Labels[s];
+			}
+		}
+				
+		arff->SampleCount = newSampleCount;
+		arff->FeatureCount = newFeatureCount;
+		arff->Matrix = newMatrix;
+		arff->Labels = newLabels;
+		arff->SNPNames = newSNPNames;		
+	}
+	
+	/*
+	for(int i=0;i<arff->FeatureCount;i++){
+		cout<<i<<":";
+		for(int j=800;j<arff->SampleCount;j++){
+			cout<<0+arff->Matrix[i*arff->SampleCount+j];
+		}
+		cout<<endl;
+	}
+
+	for(int j=0;j<arff->SampleCount;j++){		
+		if(arff->Labels[j]){
+			cout<<1;
+		}else{
+			cout<<0;
+		}
+	}
+	cout<<endl;
+	*/
+	
+	//decrease data size by masking unwanted features
 	int features = inputCommand.features;
 	if(features==0){
 		features = arff->FeatureCount;

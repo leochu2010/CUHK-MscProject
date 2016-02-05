@@ -330,7 +330,7 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 				cout<<"exception[i]"<<exception[i][0]<<endl;
 				cout<<"error found"<<endl;
 			}
-		}
+		}				
 	}
 		
 	//free cuda memory	
