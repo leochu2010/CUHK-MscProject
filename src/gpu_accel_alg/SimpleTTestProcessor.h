@@ -6,6 +6,8 @@ class SimpleTTestProcessor : public SimpleProcessor
 {
 	public:
 			
+		SimpleTTestProcessor();
+		
 		void calculateAFeature(
 			char* label0SamplesArray, int numOfLabel0Samples,
 			char* label1SamplesArray, int numOfLabel1Samples,

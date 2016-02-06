@@ -10,6 +10,8 @@ class GpuAcceleratedPValueProcessor : public GpuAcceleratedProcessor
 {
 	public:
 	
+		GpuAcceleratedPValueProcessor();
+		
 		void calculateOnStream(int* numberOfFeaturesPerStream,
 			char** label0SamplesArray_stream_feature, int numOfLabel0Samples,
 			char** label1SamplesArray_stream_feature, int numOfLabel1Samples,
@@ -18,7 +20,7 @@ class GpuAcceleratedPValueProcessor : public GpuAcceleratedProcessor
 			int device,
 			cudaStream_t* streams,
 			bool* success, string* errorMessage);
-
+	
 };
 
 #endif

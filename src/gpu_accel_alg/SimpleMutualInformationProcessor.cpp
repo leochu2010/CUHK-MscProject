@@ -4,6 +4,10 @@
 #include <math.h>
 #include <iostream>
 
+SimpleMutualInformationProcessor::SimpleMutualInformationProcessor(){
+	parallelizationType = PARALLELIZE_ON_FEATURES;	
+}
+
 int normaliseArray(char *inputVector, int *outputVector, int vectorLength)
 {
   int minVal = 0;

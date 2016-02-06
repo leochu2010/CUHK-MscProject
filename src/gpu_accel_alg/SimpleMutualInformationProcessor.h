@@ -5,9 +5,12 @@
 class SimpleMutualInformationProcessor : public SimpleProcessor 
 {
 	private:			
-			double calculateMutualInformation(char *firstVector, char *secondVector, int vectorLength);
+		double calculateMutualInformation(char *firstVector, char *secondVector, int vectorLength);
 	public:        				
-			void calculateAFeature(
+		
+		SimpleMutualInformationProcessor();
+	
+		void calculateAFeature(
 			char* label0SamplesArray, int numOfLabel0Samples,
 			char* label1SamplesArray, int numOfLabel1Samples,
 			double* score);

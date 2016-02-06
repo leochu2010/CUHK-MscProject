@@ -8,6 +8,10 @@
 
 using namespace std;
 
+SimpleTTestProcessor::SimpleTTestProcessor(){
+	parallelizationType = PARALLELIZE_ON_FEATURES;	
+}
+
 double calculate_ttest(char *array1, int array1_size, char *array2, int array2_size) {	
 			
 	if (array1_size <= 1) {

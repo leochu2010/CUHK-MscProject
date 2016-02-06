@@ -8,6 +8,10 @@
 
 using namespace std;
 
+SimplePValueProcessor::SimplePValueProcessor(){
+	parallelizationType = PARALLELIZE_ON_FEATURES;	
+}
+
 double calculate_Pvalue(char *array1, int array1_size, char *array2, int array2_size) {	
 			
 	if (array1_size <= 1) {

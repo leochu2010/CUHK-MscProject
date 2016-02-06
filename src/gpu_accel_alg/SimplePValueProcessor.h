@@ -6,6 +6,8 @@ class SimplePValueProcessor : public SimpleProcessor
 {
 	public:
 			
+		SimplePValueProcessor();
+		
 		void calculateAFeature(
 			char* label0SamplesArray, int numOfLabel0Samples,
 			char* label1SamplesArray, int numOfLabel1Samples,

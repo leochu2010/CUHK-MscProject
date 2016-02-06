@@ -17,3 +17,6 @@ int Processor::getFeaturesPerArray(int numOfFeatures, int arrayNumbers){
 	return ceil((numOfFeatures/(float)arrayNumbers));	
 }
 
+int Processor::getParallelizationType(){
+	return parallelizationType;
+}

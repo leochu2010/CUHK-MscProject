@@ -10,6 +10,8 @@ class GpuAcceleratedMutualInformationProcessor : public GpuAcceleratedProcessor
 {
 	public:
 	
+		GpuAcceleratedMutualInformationProcessor();
+		
 		void calculateOnStream(int* numberOfFeaturesPerStream,
 			char** label0SamplesArray_stream_feature, int numOfLabel0Samples,
 			char** label1SamplesArray_stream_feature, int numOfLabel1Samples,

@@ -9,6 +9,10 @@
 
 using namespace std;
 
+GpuAcceleratedPValueProcessor::GpuAcceleratedPValueProcessor(){
+	parallelizationType = PARALLELIZE_ON_FEATURES;
+}
+
 //declare local function
 __global__ void calculate_Pvalue(
 	char *d_array1, size_t array1_size, size_t array1_size_per_thread,

@@ -9,6 +9,10 @@
 
 using namespace std;
 
+GpuAcceleratedMutualInformationProcessor::GpuAcceleratedMutualInformationProcessor(){
+	parallelizationType = PARALLELIZE_ON_FEATURES;
+}
+
 __global__ void calculateMutualInformation(
 	char *d_firstVector, char *d_secondVector, 
 	int vectorLength, int vectorLengthPerThread,

@@ -2,6 +2,9 @@
 #define SIMPLEPROCESSOR_H
 
 #include "Processor.h"
+
+using namespace std;
+
 class SimpleProcessor : public Processor 
 {
 	private:
@@ -17,7 +20,17 @@ class SimpleProcessor : public Processor
 			char* label1SamplesArray, int numOfLabel1Samples,
 			double* score){};
 			
+		virtual void calculateAllFeatures(
+			char** label0SamplesArray, int numOfLabel0Samples,
+			char** label1SamplesArray, int numOfLabel1Samples,
+			int numOfFeatures,
+			double* scores, bool* success, string* errorMessage){};
+			
 	protected:
+	
+		Result* parallelizeCalculationOnFeatures(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);
+		
+		Result* parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);
 	
 		int getNumberOfCores();		
 		

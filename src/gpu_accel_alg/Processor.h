@@ -6,10 +6,13 @@
 #define FEATURE_MASKED 2
 #define INVALID_FEATURE 3
 
+#define PARALLELIZE_ON_FEATURES 1
+#define PARALLELIZE_ON_STAGES 2
+
 class Processor {	
 
 private:
-	bool debug;
+	bool debug;	
 	
 public:
 	//calcalute Interface
@@ -22,7 +25,11 @@ public:
 	bool isDebugEnabled();	
 
 protected:
+	int parallelizationType;
+	
 	int getFeaturesPerArray(int numOfFeatures, int arrayNumbers);
+	
+	int getParallelizationType();
 	
 };
 
