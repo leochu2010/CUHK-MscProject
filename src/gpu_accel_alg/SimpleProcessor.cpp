@@ -19,7 +19,7 @@ struct AsynCalculateArgs
 	char *array2;
 	int array2_size;	
 	int index;
-	double *score;
+	double *score;	
 	SimpleProcessor* processor;	
 };
 
@@ -48,67 +48,23 @@ Result* SimpleProcessor::calculate(int numOfSamples, int numOfFeatures, char* sa
 }
 
 Result* SimpleProcessor::parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels){
-			
-	//group samples by label
-	int numOfLabel0Samples = 0;
-	int numOfLabel1Samples = 0;
-	
-	for(int j=0; j<numOfSamples; j++)
-	{			
-		if((int)labels[j]==0){
-			numOfLabel0Samples+=1;		
-		}else if((int)labels[j]==1){
-			numOfLabel1Samples+=1;
-		}
-	}
-	
-	char **label0SamplesArray = (char**)malloc(numOfFeatures * sizeof(char*));
-	char **label1SamplesArray = (char**)malloc(numOfFeatures * sizeof(char*));
-	for(int arrayId=0; arrayId<numOfFeatures; arrayId++){
-		label0SamplesArray[arrayId] = (char*)malloc(numOfLabel0Samples * sizeof(char));
-		label1SamplesArray[arrayId] = (char*)malloc(numOfLabel1Samples * sizeof(char));
-	}
-	
-	for(int i=0;i<numOfFeatures;i++){		
-		
-		if(featureMask[i] != true){
-			continue;
-		}
-
-		int label0Index=0;
-		int label1Index=0;
-		
-		for(int j=0; j<numOfSamples; j++)
-		{			
-			int index = j*numOfFeatures + i;
-			if(labels[j]==0){
-				label0SamplesArray[i][label0Index]=sampleFeatureMatrix[index];
-				label0Index+=1;
-			}else if(labels[j]==1){
-				label1SamplesArray[i][label1Index]=sampleFeatureMatrix[index];
-				label1Index+=1;				
-			}			
-		}			
-	}
 	
 	Result* result = new Result;
 	result->scores=new double[numOfFeatures];
-		
+	for(int i=0; i<numOfFeatures; i++){
+		result->scores[i] = 0;
+	}
+	
 	calculateAllFeatures(
-		label0SamplesArray, numOfLabel0Samples, 
-		label1SamplesArray, numOfLabel1Samples, 
+		numOfSamples,
 		numOfFeatures,
+		sampleFeatureMatrix,
+		featureMask,
+		labels,
 		result->scores,
 		&result->success,
 		&result->errorMessage);
 		
-	for(int arrayId=0; arrayId<numOfFeatures; arrayId++){
-		free(label0SamplesArray[arrayId]);
-		free(label1SamplesArray[arrayId]);
-	}
-	free(label0SamplesArray);
-	free(label1SamplesArray);
-	
 	return result;
 }
 

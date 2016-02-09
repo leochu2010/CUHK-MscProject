@@ -7,6 +7,7 @@
 #include "gpu_accel_alg/SimpleProcessor.h"
 #include "gpu_accel_alg/Processor.h"
 #include "gpu_accel_alg/GpuAcceleratedProcessor.h"
+#include "gpu_accel_alg/SimpleReliefFProcessor.h"
 #include "Constant.h"
 #include <iostream>
 #include "SNPArffParser.h"
@@ -40,6 +41,7 @@ struct ProcessorCommand{
 	int gpuDeviceStream;
 	bool enableGpuAccelerationThreadPool;
 	bool debug;
+	int relieffKNearest;
 };
 
 struct InputCommand{
@@ -97,6 +99,9 @@ Command parseCommand(int argc, char** argv){
 		ValuesConstraint<string> algorithmArgAllowedVals( algorithmArgAllowed );
 		ValueArg<string> algorithmArg("a","algorithm","Data Mining Algorithm",true,"default",&algorithmArgAllowedVals);
 		cmd.add(algorithmArg);
+		
+		ValueArg<int> relieffKNearestArg("","k_nearest","K-Nearest instance for Relieff algorithm",false,5,"int");
+		cmd.add(relieffKNearestArg);
 		
 		ValueArg<int> cpuCoreArg("c","core","Number of CPU Core",false,0,"int");
 		cmd.add(cpuCoreArg);
@@ -169,6 +174,7 @@ Command parseCommand(int argc, char** argv){
 		command.processorCommand.gpuDeviceStream = gpuDeviceStreamArg.getValue();
 		command.processorCommand.enableGpuAccelerationThreadPool = enableGpuAccelerationThreadPoolArg.getValue();
 		command.processorCommand.debug = debugArg.getValue();
+		command.processorCommand.relieffKNearest = relieffKNearestArg.getValue();
 		
 		command.inputCommand.filePath = inputFileArg.getValue();
 		command.inputCommand.folderPath = inputFolderArg.getValue();
@@ -207,39 +213,60 @@ int main(int argc, char ** argv) {
 	
 }
 
-GpuAcceleratedProcessor* getGpuAcceleratedProcessor(string algorithm){
+GpuAcceleratedProcessor* getGpuAcceleratedProcessor(ProcessorCommand processorCommand){
+	
+	string algorithm = processorCommand.algorithm;
+	
 	if(algorithm == P_Value){
 		return new GpuAcceleratedPValueProcessor();
-	}else if(algorithm == T_Test){
+	}
+	
+	if(algorithm == T_Test){
 		return new GpuAcceleratedTTestProcessor();
-	}else if(algorithm == MutualInformation){
+	}
+	
+	if(algorithm == MutualInformation){
 		return new GpuAcceleratedMutualInformationProcessor();
 	}
+		
 	return NULL;
 }
 
-SimpleProcessor* getSimpleProcessor(string algorithm){
+SimpleProcessor* getSimpleProcessor(ProcessorCommand processorCommand){
+	
+	string algorithm = processorCommand.algorithm;
+	
 	if(algorithm == P_Value){
 		return new SimplePValueProcessor();
-	}else if(algorithm == T_Test){
+	}
+	
+	if(algorithm == T_Test){
 		return new SimpleTTestProcessor();
-	}else if(algorithm == MutualInformation){
+	}
+	
+	if(algorithm == MutualInformation){
 		return new SimpleMutualInformationProcessor();
 	}
+	
+	if(algorithm == Relieff){
+		int kNearest = processorCommand.relieffKNearest;
+		return new SimpleReliefFProcessor(kNearest);
+	}
+	
 	return NULL;
 }
 
 Processor* getProcessor(ProcessorCommand processorCommand)
 {		
 	if(processorCommand.gpuAcceleration){
-		GpuAcceleratedProcessor* gpuAcceleratedProcessor = getGpuAcceleratedProcessor(processorCommand.algorithm);
+		GpuAcceleratedProcessor* gpuAcceleratedProcessor = getGpuAcceleratedProcessor(processorCommand);
 		gpuAcceleratedProcessor->setNumberOfThreadsPerBlock(processorCommand.gpuBlockThread);
 		gpuAcceleratedProcessor->setNumberOfDevice(processorCommand.gpuDevice);
 		gpuAcceleratedProcessor->setNumberOfStreamsPerDevice(processorCommand.gpuDeviceStream);
 		gpuAcceleratedProcessor->setDebug(processorCommand.debug);
 		return gpuAcceleratedProcessor;
 	}else{
-		SimpleProcessor* simpleProcessor = getSimpleProcessor(processorCommand.algorithm);
+		SimpleProcessor* simpleProcessor = getSimpleProcessor(processorCommand);
 		simpleProcessor->setNumberOfCores(processorCommand.cpuCore);
 		simpleProcessor->setDebug(processorCommand.debug);
 		return simpleProcessor;
@@ -454,6 +481,16 @@ void exportResult(StructArff* arff, Result* r, Command command)
 				output<<(*it).second <<"\t"<<(*it).first<<"\t"<<rank<<endl;
 				rank+=1;
 			} 
+		}else if(outputCommand.snpOrder == "desc"){
+			for(int i=0; i<arff->FeatureCount; i++){
+				scoreFeatureMap.insert(pair<float, string>(r->scores[i], string(arff->SNPNames[i])));
+			}
+			
+			int rank = 1;
+			for(multimap<float,string>::reverse_iterator it = scoreFeatureMap.rbegin(); it!= scoreFeatureMap.rend(); ++it){	
+				output<<(*it).second <<"\t"<<(*it).first<<"\t"<<rank<<endl;
+				rank+=1;
+			} 			
 		}else if(outputCommand.snpOrder == "no"){
 			for(int i=0; i<arff->FeatureCount; i++){
 				output<<string(arff->SNPNames[i]) <<"\t"<<r->scores[i]<<endl;

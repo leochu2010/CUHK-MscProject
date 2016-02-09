@@ -6,13 +6,17 @@ class SimpleReliefFProcessor : public SimpleProcessor
 {
 	public:
 	
-		SimpleReliefFProcessor();
+		SimpleReliefFProcessor(int kNearest);
 			
 		void calculateAllFeatures(
-			char** label0SamplesArray, int numOfLabel0Samples,
-			char** label1SamplesArray, int numOfLabel1Samples,
-			int numOfFeatures,
+			int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels,
 			double* scores, bool* success, string* errorMessage);
+	
+	private:		
+		
+		int kNearestInstance;
+		
+		int getKNearest();
 		
 };
 
