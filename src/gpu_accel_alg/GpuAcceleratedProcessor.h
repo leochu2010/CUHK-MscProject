@@ -10,8 +10,8 @@ using namespace std;
 
 class GpuAcceleratedProcessor : public Processor 
 {
-private:	
-	int numberOfThreadsPerBlock;	
+private:
+	int numberOfThreadsPerBlock;
 	
 	int numberOfDevice;
 	
@@ -57,7 +57,16 @@ protected:
 		int** numberOfFeaturesPerStream,
 		bool*** featureMasksArray_device_stream_feature,		
 		bool* successPerDevice, string* errorMessagePerDevice);
+	
+	virtual void calculateAllFeatures(
+			int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels,
+			double* scores, bool* success, string* errorMessage){};
+			
+	Result* parallelizeCalculationOnFeatures(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);
 		
+	virtual Result* parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels){
+		return NULL;
+	};
 };
 
 #endif

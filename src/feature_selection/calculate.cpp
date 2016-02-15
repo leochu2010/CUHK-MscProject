@@ -8,6 +8,7 @@
 #include "gpu_accel_alg/Processor.h"
 #include "gpu_accel_alg/GpuAcceleratedProcessor.h"
 #include "gpu_accel_alg/SimpleReliefFProcessor.h"
+#include "gpu_accel_alg/GpuAcceleratedReliefFProcessor.h"
 #include "Constant.h"
 #include <iostream>
 #include "SNPArffParser.h"
@@ -229,6 +230,11 @@ GpuAcceleratedProcessor* getGpuAcceleratedProcessor(ProcessorCommand processorCo
 		return new GpuAcceleratedMutualInformationProcessor();
 	}
 		
+	if(algorithm == Relieff){
+		int kNearest = processorCommand.relieffKNearest;
+		return new GpuAcceleratedReliefFProcessor(kNearest);
+	}
+	
 	return NULL;
 }
 

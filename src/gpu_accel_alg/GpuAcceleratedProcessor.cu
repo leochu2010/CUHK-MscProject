@@ -297,6 +297,17 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 }
 
 Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels){
+	
+	if(getParallelizationType() == PARALLELIZE_ON_FEATURES){
+		return parallelizeCalculationOnFeatures(numOfSamples, numOfFeatures, sampleFeatureMatrix, featureMask, labels);
+	}else if(getParallelizationType() == PARALLELIZE_ON_STAGES){
+		return parallelizeCalculationOnStages(numOfSamples, numOfFeatures, sampleFeatureMatrix, featureMask, labels);
+	}
+	
+	return NULL;
+}
+
+Result* GpuAcceleratedProcessor::parallelizeCalculationOnFeatures(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels){
 		
 	Timer pre("Pre-processing");
 	pre.start();

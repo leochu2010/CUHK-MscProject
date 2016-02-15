@@ -201,6 +201,7 @@ struct AsynWeightArgs{
 	int* kNearestHit;
 	int* kNearestMiss;
 	int numOfFeatures;
+	bool* featureMask;
 };
 
 void asynWeights(void* arg){
@@ -214,11 +215,16 @@ void asynWeights(void* arg){
 	char* sampleFeatureMatrix = args->sampleFeatureMatrix;
 	int* kNearestHit = args->kNearestHit;
 	int* kNearestMiss = args->kNearestMiss;
+	bool* featureMask = args->featureMask;
 	
 	for(int i=0; i<kNearest; i++){
 		int hitSampleId = kNearestHit[i];
 		int missSampleId = kNearestMiss[i];
 		for(int j=0; j<numOfFeatures; j++){
+			
+			if(featureMask[j] != true){
+				continue;
+			}						
 			
 			char feature = sampleFeatureMatrix[sampleId * numOfFeatures + j];
 			char hitFeature = sampleFeatureMatrix[hitSampleId * numOfFeatures + j];
@@ -236,7 +242,7 @@ void asynWeights(void* arg){
 }
 
 void weights(double* finalWeight, int numOfFeatures, int numOfSamples,
-		char* sampleFeatureMatrix,
+		char* sampleFeatureMatrix, bool* featureMask,
 		int** kNearestHit, int** kNearestMiss, int kNearest,
 		ThreadPool* tp,
 		bool debug){		
@@ -254,6 +260,7 @@ void weights(double* finalWeight, int numOfFeatures, int numOfSamples,
 		args->kNearestHit = kNearestHit[i];
 		args->kNearestMiss = kNearestMiss[i];
 		args->numOfFeatures = numOfFeatures;
+		args->featureMask = featureMask;
 		Task* t = new Task(&asynWeights, (void*) args);
 		tp->add_task(t);
 	}
@@ -321,7 +328,7 @@ void SimpleReliefFProcessor::calculateAllFeatures(
 	if(isDebugEnabled()){
 		cout<<"weight features"<<endl;
 	}	
-	weights(scores,numOfFeatures, numOfSamples, sampleFeatureMatrix, kNearestHit, kNearestMiss, kNearest, &tp, isDebugEnabled());
+	weights(scores,numOfFeatures, numOfSamples, sampleFeatureMatrix, featureMask, kNearestHit, kNearestMiss, kNearest, &tp, isDebugEnabled());
 	
 	for(int i=0; i<numOfSamples; i++){
 		free(kNearestHit[i]);
