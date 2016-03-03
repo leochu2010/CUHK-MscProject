@@ -19,121 +19,106 @@ int GpuAcceleratedReliefFProcessor::getKNearest(){
 	return kNearestInstance;
 }
 
-__global__ void generateDisatanceMatrix(
+__device__ void pushSampleIdIntoBucket(int sample1Id, int sample2Id, int numOfFeatures, int distance, int kNearest, int* d_distanceBuckets){
+		
+		int sampleBucketNum = sample1Id * numOfFeatures * (kNearest+1) + (kNearest+1) * distance;
+		if(d_distanceBuckets[sampleBucketNum] < kNearest){				
+		
+			int sampleBucketIdx = atomicAdd(&d_distanceBuckets[sampleBucketNum], 1) + 1;			
+			if (sampleBucketIdx > kNearest){
+				atomicSub(&d_distanceBuckets[sampleBucketNum], 1);
+			}else{
+				atomicAdd(&d_distanceBuckets[sampleBucketNum + sampleBucketIdx], sample2Id);
+			}
+		
+		}	
+}
+
+__global__ void generateDisatanceBuckets(
+		int kNearest,
 		int samplePerThread,
-		int numOfSamples,		
-		int numOfFeatures,
-		bool* d_featureMask,
-		char* d_sampleFeatureMatrix,
-		int* d_distanceMatrix
+		int numOfSamples,			
+		int numOfFeatures,		
+		int intsPerInstance,
+		char* d_labels,		
+		int* d_packedSampleFeatureMatrix,		
+		int* d_hitDistanceBuckets,
+		int* d_missDistanceBuckets		
 	){
 		
 	int sample1Id = gridDim.x * blockIdx.x + blockIdx.y;	
 
-	if(sample1Id > numOfSamples){
+	if(sample1Id >= numOfSamples){
 		return;
-	}	
+	}
 
 	/*
 	if(threadIdx.x == 0){
 		printf("sample1=%d, gridDim.x=%d * blockIdx.x=%d + blockIdx.y=%d\n", sample1Id,gridDim.x,blockIdx.x,blockIdx.y);
 	}
-	*/	
+	*/
 	
 	for(int i = 0; i < samplePerThread; i++){
-		int distance = 0;
+		
 		int sample2Id = threadIdx.x * samplePerThread + i;
-		if(sample2Id > numOfSamples){
+		
+		if(sample2Id <= sample1Id){
 			continue;
 		}
 		
-		for(int featureId = 0; featureId < numOfFeatures; featureId ++ ){
-			
-			if(d_featureMask[featureId] != true){
-				continue;
-			}
-			
-			if(d_sampleFeatureMatrix[sample1Id * numOfFeatures + featureId] != d_sampleFeatureMatrix[sample2Id * numOfFeatures + featureId]){
-				distance += 1;
-			}
-			
+		if(sample2Id >= numOfSamples){
+			break;
 		}
-		d_distanceMatrix[sample1Id * numOfSamples + sample2Id] = distance;
-		//printf("d_distanceMatrix[%d]=%d \n",sample1Id * numOfSamples + sample2Id,d_distanceMatrix[sample1Id * numOfSamples + sample2Id]);
+					
+		int distance = 0;
+		for(int k = 0; k < intsPerInstance; k++){
+			int first = d_packedSampleFeatureMatrix[sample1Id * intsPerInstance + k];
+			int second = d_packedSampleFeatureMatrix[sample2Id * intsPerInstance + k];
+			int ret = first ^ second;
+			for(int l = 0; l < 32; l += 2){
+				int diff = (ret >> l) & 3;
+				if(diff != 0) distance++; 
+			}
+		}
+		
+		if(d_labels[sample1Id] == d_labels[sample2Id]){			
+			pushSampleIdIntoBucket(sample1Id, sample2Id, numOfFeatures, distance, kNearest, d_hitDistanceBuckets);
+			pushSampleIdIntoBucket(sample2Id, sample1Id, numOfFeatures, distance, kNearest, d_hitDistanceBuckets);
+		}else{			
+			pushSampleIdIntoBucket(sample1Id, sample2Id, numOfFeatures, distance, kNearest, d_missDistanceBuckets);
+			pushSampleIdIntoBucket(sample2Id, sample1Id, numOfFeatures, distance, kNearest, d_missDistanceBuckets);
+		}
 	}
-	
 }
 
-__device__ int getMinDistanceIndex(int* sampleDistanceMatrix, bool* ignore, int numOfSamples, int numOfFeatures, char *labels, char label, bool sameLabel, int sample1Id){
-	
-	int minDistance = numOfFeatures;
-	int minDistanceIndex = -1;
+__device__ void findKNearest(int numOfFeatures, int sampleId, int* d_distanceBuckets, int* d_kNearestSampleId, int kNearest){
+	int numOfSamples = 0;	
+	for(int distance=0; distance<numOfFeatures; distance++){	
+			
+		int bucket = sampleId * numOfFeatures * (kNearest+1) + (kNearest+1) * distance;
+		/*
+		if(sampleId == 0){			
+			printf("d_hitDistanceBuckets[%d]=%d, %d, %d, %d, %d, %d \n",distance, d_hitDistanceBuckets[bucket], 
+			d_hitDistanceBuckets[bucket + 1],
+			d_hitDistanceBuckets[bucket + 2],
+			d_hitDistanceBuckets[bucket + 3],
+			d_hitDistanceBuckets[bucket + 4],
+			d_hitDistanceBuckets[bucket + 5]);
+		}*/
 		
-	for(int i=0; i<numOfSamples; i++){
-		
-		if(sameLabel){
-			if(labels[i] != label){
-				continue;			
+		for(int i=0; i<d_distanceBuckets[bucket];i++){
+			int nearSampleId = d_distanceBuckets[bucket + i+1];
+			d_kNearestSampleId[sampleId * kNearest + numOfSamples] = nearSampleId;
+			numOfSamples += 1;
+			/*
+			if(sampleId == 0){
+				printf("sampleId:%d\n",nearSampleId);
+			}*/
+			if(numOfSamples == kNearest){
+				return;
 			}
-		}else{
-			if(labels[i] == label){			
-				continue;			
-			}
-		}
-		
-		if(ignore[sample1Id * numOfSamples + i]){
-			continue;
-		}
-		
-		if(sampleDistanceMatrix[sample1Id * numOfSamples + i] < minDistance){
-			//printf("sampleDistanceMatrix[%d]=%d \n",sample1Id * numOfSamples + i,sampleDistanceMatrix[sample1Id * numOfSamples + i]);
-			minDistanceIndex = i;
-			minDistance = sampleDistanceMatrix[sample1Id * numOfSamples + i];
 		}
 	}
-	
-	//printf("getMinDistanceIndex = %d, label=%d\n",minDistanceIndex, label);
-	return minDistanceIndex;	
-}
-
-__global__ void findKNearestSamples(
-		int kNearest,
-		int samplePerThread,
-		int numOfSamples,
-		int numOfFeatures,
-		bool* d_ignoreHit,
-		bool* d_ignoreMiss,
-		int* d_sampleDistanceMatrix,
-		char* d_labels,
-		int* d_kNearestHit,
-		int* d_kNearestMiss		
-	){
-		
-	int sample1Id = gridDim.x * blockIdx.x + blockIdx.y;	
-	
-	//printf("sample1=%d, gridDim.x=%d * blockIdx.x=%d + blockIdx.y=%d\n", sample1Id,gridDim.x,blockIdx.x,blockIdx.y);	
-	
-	if(sample1Id > numOfSamples){
-		return;
-	}
-	
-	d_ignoreMiss[sample1Id * numOfSamples + sample1Id] = true;
-	d_ignoreHit[sample1Id * numOfSamples + sample1Id] = true;
-	
-	bool sameLabel = true;
-	for(int i=0; i<kNearest; i++){
-		int minDistanceId = getMinDistanceIndex(d_sampleDistanceMatrix, d_ignoreHit, numOfSamples, numOfFeatures, d_labels, d_labels[sample1Id], sameLabel, sample1Id);
-		d_ignoreHit[sample1Id * numOfSamples + minDistanceId] = true;
-		d_kNearestHit[sample1Id * kNearest + i] = minDistanceId;
-	}
-	
-	sameLabel = false;
-	for(int i=0; i<kNearest; i++){
-		int minDistanceId = getMinDistanceIndex(d_sampleDistanceMatrix, d_ignoreMiss, numOfSamples, numOfFeatures, d_labels, d_labels[sample1Id], sameLabel, sample1Id);
-		d_ignoreMiss[sample1Id * numOfSamples + minDistanceId] = true;
-		d_kNearestMiss[sample1Id * kNearest + i] = minDistanceId;
-	}	
-	
 }
 
 __global__ void weightFeatures(
@@ -142,6 +127,8 @@ __global__ void weightFeatures(
 		int numOfSamples,
 		int* d_kNearestHit,
 		int* d_kNearestMiss,
+		int* d_hitDistanceBuckets,
+		int* d_missDistanceBuckets,
 		bool* d_featureMask,
 		char* d_sampleFeatureMatrix,
 		float* d_weight,
@@ -153,14 +140,13 @@ __global__ void weightFeatures(
 	//printf("sample=%d, gridDim.x=%d * blockIdx.x=%d + blockIdx.y=%d\n", sampleId,gridDim.x,blockIdx.x,blockIdx.y);	
 	
 	
-	if(sampleId > numOfSamples){
+	if(sampleId >= numOfSamples){
 		return;
 	}
 	
-	for(int j=0; j<numOfFeatures; j++){
-		d_weight[sampleId * numOfFeatures + j] = 0;
-	}
-	
+	findKNearest(numOfFeatures, sampleId, d_hitDistanceBuckets, d_kNearestHit, kNearest);
+	findKNearest(numOfFeatures, sampleId, d_missDistanceBuckets, d_kNearestMiss, kNearest);
+		
 	for(int i=0; i<kNearest; i++){
 		int hitSampleId = d_kNearestHit[sampleId * kNearest + i];
 		int missSampleId = d_kNearestMiss[sampleId * kNearest + i];
@@ -169,7 +155,7 @@ __global__ void weightFeatures(
 			
 			if(d_featureMask[j] != true){
 				continue;
-			}						
+			}
 			
 			char feature = d_sampleFeatureMatrix[sampleId * numOfFeatures + j];
 			char hitFeature = d_sampleFeatureMatrix[hitSampleId * numOfFeatures + j];
@@ -191,7 +177,7 @@ __global__ void weightFeatures(
 	
 }
 
-Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels){
+Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, int* packedSampleFeatureMatrix, bool* featureMask, char* labels){
 	
 	if(isDebugEnabled()){
 		cout<<"numOfSamples="<<numOfSamples<<", numOfFeatures="<<numOfFeatures<<endl;
@@ -200,82 +186,71 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 	Timer processing("Processing");
 	processing.start();
 	
+	int kNearest = getKNearest();
+	
 	bool* d_featureMask;
 	char* d_sampleFeatureMatrix; 
-	int* d_distanceMatrix;	
+	int* d_packedSampleFeatureMatrix;	
+	int* d_hitDistanceBuckets;
+	int* d_missDistanceBuckets;
+	char* d_labels;
+		
+	int intsPerInstance = numOfFeatures / 16 + (numOfFeatures % 16 == 0? 0 : 1);
 	
 	cudaMalloc(&d_featureMask, numOfFeatures*sizeof(bool));
 	cudaMalloc(&d_sampleFeatureMatrix, numOfFeatures * numOfSamples*sizeof(char));
-	cudaMalloc(&d_distanceMatrix, numOfSamples * numOfSamples*sizeof(int));
-	
+	cudaMalloc(&d_packedSampleFeatureMatrix, intsPerInstance * numOfSamples*sizeof(int));	
+	cudaMalloc(&d_labels, numOfSamples*sizeof(char));		
+		
 	cudaMemcpy(d_featureMask, featureMask, numOfFeatures*sizeof(bool),cudaMemcpyHostToDevice);
-	cudaMemcpy(d_sampleFeatureMatrix, sampleFeatureMatrix, numOfFeatures*numOfSamples*sizeof(char),cudaMemcpyHostToDevice);	
+	cudaMemcpy(d_sampleFeatureMatrix, sampleFeatureMatrix, numOfFeatures*numOfSamples*sizeof(char),cudaMemcpyHostToDevice);
+	cudaMemcpy(d_packedSampleFeatureMatrix, packedSampleFeatureMatrix, intsPerInstance * numOfSamples*sizeof(int),cudaMemcpyHostToDevice);	
+	cudaMemcpy(d_labels, labels, numOfSamples*sizeof(char),cudaMemcpyHostToDevice);
+	
+	cudaMalloc(&d_hitDistanceBuckets, numOfSamples * numOfFeatures * (kNearest+1) * sizeof(int));
+	cudaMalloc(&d_missDistanceBuckets, numOfSamples * numOfFeatures * (kNearest+1) * sizeof(int));
+	cudaMemset(d_hitDistanceBuckets, 0, numOfSamples * numOfFeatures * (kNearest+1) * sizeof(int));
+	cudaMemset(d_missDistanceBuckets, 0, numOfSamples * numOfFeatures * (kNearest+1) * sizeof(int));
+
 		
 	int grid2d = (int)ceil(pow(numOfSamples,1/2.));
 	int threadSize = getNumberOfThreadsPerBlock();
 	
 	int samplePerThread = (int)ceil(((float)numOfSamples)/threadSize);
+	int maxSampleId = (int)ceil(((float)numOfSamples)/2);
 	
 	dim3 gridSize(grid2d,grid2d);
 	
 	if(isDebugEnabled()){
-		cout<<"calculate distance matrix"<<endl;
+		cout<<"generate distance buckets"<<endl;
 	}	
-	generateDisatanceMatrix<<<gridSize, threadSize>>>(
-		samplePerThread,
-		numOfSamples,
-		numOfFeatures,
-		d_featureMask,
-		d_sampleFeatureMatrix,
-		d_distanceMatrix
-		);
-	cudaDeviceSynchronize();
-			
-	int kNearest = getKNearest();
-			
-	bool* d_ignoreHit;
-	bool* d_ignoreMiss;
-	char* d_labels;
-	int* d_kNearestHit;
-	int* d_kNearestMiss;	
-	cudaMalloc(&d_ignoreHit, numOfSamples*numOfSamples*sizeof(bool));
-	cudaMalloc(&d_ignoreMiss, numOfSamples*numOfSamples*sizeof(bool));	
-	cudaMalloc(&d_labels, numOfSamples*sizeof(char));		
-	cudaMalloc(&d_kNearestHit, kNearest * numOfSamples*sizeof(int));
-	cudaMalloc(&d_kNearestMiss, kNearest * numOfSamples*sizeof(int));	
-	
-	if(isDebugEnabled()){
-		cout<<"find the "<<kNearest<<" nearest samples"<<endl;
-	}	
-	
-	bool* ignoreHit = (bool*)calloc(numOfSamples*numOfSamples,sizeof(bool));
-	bool* ignoreMiss = (bool*)calloc(numOfSamples*numOfSamples,sizeof(bool));
-	
-	cudaMemcpy(d_labels, labels, numOfSamples*sizeof(char),cudaMemcpyHostToDevice);
-	cudaMemcpy(d_ignoreHit, ignoreHit, numOfSamples*numOfSamples*sizeof(bool),cudaMemcpyHostToDevice);
-	cudaMemcpy(d_ignoreMiss, ignoreMiss, numOfSamples*numOfSamples*sizeof(bool),cudaMemcpyHostToDevice);
-	
-	findKNearestSamples<<<gridSize, 1>>>(
+	generateDisatanceBuckets<<<gridSize, threadSize>>>(	
 		kNearest,
 		samplePerThread,
-		numOfSamples,
-		numOfFeatures,
-		d_ignoreHit,
-		d_ignoreMiss,
-		d_distanceMatrix,
-		d_labels,
-		d_kNearestHit,
-		d_kNearestMiss		
-	);
+		numOfSamples,			
+		numOfFeatures,		
+		intsPerInstance,
+		d_labels,		
+		d_packedSampleFeatureMatrix,		
+		d_hitDistanceBuckets,
+		d_missDistanceBuckets
+		);
 	cudaDeviceSynchronize();
-	cudaFree(d_distanceMatrix);
-	cudaFree(d_labels);
-		
-	float* finalWeight = (float*)calloc(numOfFeatures,sizeof(float));	
 	
+	cudaFree(d_labels);
+	
+	int* d_kNearestHit;
+	int* d_kNearestMiss;
+	cudaMalloc(&d_kNearestHit, kNearest * numOfSamples*sizeof(int));
+	cudaMalloc(&d_kNearestMiss, kNearest * numOfSamples*sizeof(int));
+		
+	float* finalWeight = (float*)calloc(numOfFeatures,sizeof(float));
 	float* d_weight;
-	float* d_finalWeight;	
+	float* d_finalWeight;
+	
 	cudaMalloc(&d_weight, numOfSamples*numOfFeatures*sizeof(float));
+	cudaMemset(d_weight, 0, numOfSamples*numOfFeatures*sizeof(float));
+	
 	cudaMalloc(&d_finalWeight, numOfFeatures*sizeof(float));	
 	cudaMemcpy(d_finalWeight, finalWeight, numOfFeatures*sizeof(float),cudaMemcpyHostToDevice);
 	
@@ -289,6 +264,8 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 		numOfSamples,
 		d_kNearestHit,
 		d_kNearestMiss,
+		d_hitDistanceBuckets,
+		d_missDistanceBuckets,
 		d_featureMask,
 		d_sampleFeatureMatrix,
 		d_weight,
@@ -297,11 +274,6 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 		
 	cudaDeviceSynchronize();
 	
-	free(ignoreHit);
-	free(ignoreMiss);
-	cudaFree(d_ignoreHit);
-	cudaFree(d_ignoreMiss);
-		
 	cudaMemcpy(finalWeight, d_finalWeight, numOfFeatures*sizeof(float), cudaMemcpyDeviceToHost);
 			
 	if(isDebugEnabled()){
@@ -309,16 +281,19 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 	}
 	Result* result = new Result;
 	result->scores = new double[numOfFeatures];
+	int divider = numOfSamples * kNearest;
 	for(int i=0;i<numOfFeatures;i++){
-		result->scores[i] = finalWeight[i]/(numOfSamples * kNearest);
+		result->scores[i] = finalWeight[i]/divider;
 	}
 	result->success = true;	
 		
 	free(finalWeight);
 	
+	cudaFree(d_hitDistanceBuckets);
+	cudaFree(d_missDistanceBuckets);
 	cudaFree(d_featureMask);
 	cudaFree(d_sampleFeatureMatrix);
-	cudaFree(d_distanceMatrix);	
+	cudaFree(d_packedSampleFeatureMatrix);	
 	cudaFree(d_labels);
 	cudaFree(d_kNearestHit);
 	cudaFree(d_kNearestMiss);

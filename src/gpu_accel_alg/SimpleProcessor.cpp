@@ -55,6 +55,9 @@ Result* SimpleProcessor::parallelizeCalculationOnStages(int numOfSamples, int nu
 		result->scores[i] = 0;
 	}
 	
+	Timer t1("Processing");
+	t1.start();
+	
 	calculateAllFeatures(
 		numOfSamples,
 		numOfFeatures,
@@ -64,6 +67,11 @@ Result* SimpleProcessor::parallelizeCalculationOnStages(int numOfSamples, int nu
 		result->scores,
 		&result->success,
 		&result->errorMessage);
+	
+	t1.stop();
+	t1.printTimeSpent();	
+	result->startTime=t1.getStartTime();
+	result->endTime=t1.getStopTime();
 		
 	return result;
 }

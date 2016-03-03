@@ -64,7 +64,7 @@ protected:
 			
 	Result* parallelizeCalculationOnFeatures(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels);
 		
-	virtual Result* parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleTimesFeature, bool* featureMask, char* labels){
+	virtual Result* parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, int* packedSampleFeatureMatrix, bool* featureMask, char* labels){
 		return NULL;
 	};
 };

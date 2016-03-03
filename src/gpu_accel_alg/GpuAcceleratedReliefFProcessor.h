@@ -12,7 +12,7 @@ class GpuAcceleratedReliefFProcessor : public GpuAcceleratedProcessor
 
 		GpuAcceleratedReliefFProcessor(int kNearest);
 		
-		Result* parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels);
+		Result* parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, int* packedSampleFeatureMatrix, bool* featureMask, char* labels);
 	
 	private:		
 		
