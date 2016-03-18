@@ -31,6 +31,7 @@ protected:
 	
 	int getParallelizationType();
 	
+	int* packSampleFeatureMatrix(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask);
 };
 
 #endif

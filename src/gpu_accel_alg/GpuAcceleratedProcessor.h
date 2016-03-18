@@ -67,6 +67,8 @@ protected:
 	virtual Result* parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, int* packedSampleFeatureMatrix, bool* featureMask, char* labels){
 		return NULL;
 	};
+	
+	void getMemoryInfo(string message);
 };
 
 #endif

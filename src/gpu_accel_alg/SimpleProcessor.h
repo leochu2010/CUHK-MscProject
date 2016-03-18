@@ -21,7 +21,7 @@ class SimpleProcessor : public Processor
 			double* score){};
 			
 		virtual void calculateAllFeatures(
-			int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels,
+			int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, int* packedSampleFeatureMatrix, bool* featureMask, char* labels,
 			double* scores, bool* success, string* errorMessage){};
 			
 	protected:

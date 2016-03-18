@@ -8,13 +8,21 @@
 #include "threadpool/ThreadPool.h"
 #include "utils/Timer.h"
 
-using namespace std;
-
 GpuAcceleratedProcessor::GpuAcceleratedProcessor(){
 	this->numberOfThreadsPerBlock = 0;
 	this->numberOfDevice = 0;
 	this->numberOfStreamsPerDevice = 1;
 	this->threadPoolEnabled = false;
+}
+
+void GpuAcceleratedProcessor::getMemoryInfo(string message){
+
+	if(isDebugEnabled()){		
+		size_t free, total;		
+		cudaMemGetInfo(&free,&total); 
+		cout<<message<<" "<<free/1024<<" KB free of total "<<total/1024<<" KB"<<endl;
+	}
+
 }
 
 void GpuAcceleratedProcessor::enableThreadPool(){
@@ -215,6 +223,9 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 	processing.start();
 	
 	for(int dev=0; dev<deviceCount; dev++) {
+		
+		getMemoryInfo("");
+		
 		//cout << "[GpuAcceleratedProcessor]label0SamplesArray_device_stream_feature["<<dev<<"][0][0]=" << 0+label0SamplesArray_device_stream_feature[dev][0][0] << endl;
 		AsynCalculateArgs* calculateArgs = new AsynCalculateArgs;
 		calculateArgs->numberOfFeaturesPerStream = numberOfFeaturesPerStream[dev];
@@ -296,68 +307,24 @@ Result* GpuAcceleratedProcessor::calculateOnDevice(int numOfFeatures,
 	*/
 }
 
-void setBitOfInt(int& i, int pos, bool bit) 
-{
-	if(bit)
-	{
-		i |= (1 << pos);
-	}
-	else
-	{
-		i &= ~(1 << pos);
-	}
-}
 
 Result* GpuAcceleratedProcessor::calculate(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels){
 	
 	if(getParallelizationType() == PARALLELIZE_ON_FEATURES){
+		if(isDebugEnabled()){
+			cout<<"parallelize calculation on features"<<endl;
+		}	
 		return parallelizeCalculationOnFeatures(numOfSamples, numOfFeatures, sampleFeatureMatrix, featureMask, labels);
 	}else if(getParallelizationType() == PARALLELIZE_ON_STAGES){
+		if(isDebugEnabled()){
+			cout<<"parallelize calculation on stages"<<endl;
+		}
 		
-		int intsPerInstance = numOfFeatures / 16 + (numOfFeatures % 16 == 0? 0 : 1);
+		getMemoryInfo("");
 		
-		int packeds[intsPerInstance * numOfSamples];
-		
-		for (int s=0; s<numOfSamples; s++){
-		
-			int packedIndex = 0;
-			for(int i = 0; i < numOfFeatures; i += 16){
-				int packed = 0;
-				for(int j = 0; j < 16; j++)
-				{
-					if(i + j < numOfFeatures)
-					{
-						int bit = sampleFeatureMatrix[s * numOfFeatures + i + j];
-						if(featureMask[i+j] != true){
-							bit = 0;
-						}
-						switch(bit)
-						{
-						case 0:
-							break;
-						case 1:
-							setBitOfInt(packed, j * 2, 1);
-							break;
-						case 2:
-							setBitOfInt(packed, j * 2 + 1, 1);
-							break;
-						case 3:
-							setBitOfInt(packed, j * 2 + 1, 1);
-							setBitOfInt(packed, j * 2, 1);
-							break;
-						default:
-							std::cerr << "Something's wrong on the data" << std::endl;
-							break;
-						}
-					}
-				}
+		int* packedSampleFeatureMatrix = packSampleFeatureMatrix(numOfSamples, numOfFeatures, sampleFeatureMatrix, featureMask);		
 				
-				packeds[s*intsPerInstance + packedIndex] = packed;
-				packedIndex += 1;			
-			}
-		}		
-		
-		return parallelizeCalculationOnStages(numOfSamples, numOfFeatures, sampleFeatureMatrix, packeds, featureMask, labels);
+		return parallelizeCalculationOnStages(numOfSamples, numOfFeatures, sampleFeatureMatrix, packedSampleFeatureMatrix, featureMask, labels);
 	}
 	
 	return NULL;

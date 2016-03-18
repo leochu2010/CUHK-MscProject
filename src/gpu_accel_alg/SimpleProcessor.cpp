@@ -58,10 +58,13 @@ Result* SimpleProcessor::parallelizeCalculationOnStages(int numOfSamples, int nu
 	Timer t1("Processing");
 	t1.start();
 	
+	int* packedSampleFeatureMatrix = packSampleFeatureMatrix(numOfSamples, numOfFeatures, sampleFeatureMatrix, featureMask);
+	
 	calculateAllFeatures(
 		numOfSamples,
 		numOfFeatures,
 		sampleFeatureMatrix,
+		packedSampleFeatureMatrix,
 		featureMask,
 		labels,
 		result->scores,

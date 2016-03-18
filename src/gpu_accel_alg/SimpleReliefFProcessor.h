@@ -9,7 +9,7 @@ class SimpleReliefFProcessor : public SimpleProcessor
 		SimpleReliefFProcessor(int kNearest);
 			
 		void calculateAllFeatures(
-			int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, bool* featureMask, char* labels,
+			int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, int* packedSampleFeatureMatrix, bool* featureMask, char* labels,
 			double* scores, bool* success, string* errorMessage);
 	
 	private:		
