@@ -1,4 +1,4 @@
-#include "SimpleReliefFProcessor.h"
+#include "SimpleReliefFBucketSortProcessor.h"
 #include "utils/Timer.h"
 #include <stdio.h>
 #include <math.h>
@@ -10,16 +10,16 @@
 
 using namespace std;
 
-SimpleReliefFProcessor::SimpleReliefFProcessor(int kNearest){
+SimpleReliefFBucketSortProcessor::SimpleReliefFBucketSortProcessor(int kNearest){
 	parallelizationType = PARALLELIZE_ON_STAGES;	
 	kNearestInstance = kNearest;
 }
 
-int SimpleReliefFProcessor::getKNearest(){
+int SimpleReliefFBucketSortProcessor::getKNearest(){
 	return kNearestInstance;
 }
 
-void SimpleReliefFProcessor::calculateAllFeatures(
+void SimpleReliefFBucketSortProcessor::calculateAllFeatures(
 	int numOfSamples, int numOfFeatures, 
 	char* sampleFeatureMatrix, int* packedSampleFeatureMatrix,
 	bool* featureMask, char* labels,

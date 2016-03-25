@@ -72,7 +72,9 @@ Result* SimpleProcessor::parallelizeCalculationOnStages(int numOfSamples, int nu
 		&result->errorMessage);
 	
 	t1.stop();
-	t1.printTimeSpent();	
+	if(isDebugEnabled()){
+		t1.printTimeSpent();	
+	}
 	result->startTime=t1.getStartTime();
 	result->endTime=t1.getStopTime();
 		
@@ -183,7 +185,9 @@ Result* SimpleProcessor::parallelizeCalculationOnFeatures(int numOfSamples, int 
 	
 	t1.stop();	
 	
-	t1.printTimeSpent();
+	if(isDebugEnabled()){
+		t1.printTimeSpent();
+	}
 	result->success = true;
 	result->startTime=t1.getStartTime();
 	result->endTime=t1.getStopTime();

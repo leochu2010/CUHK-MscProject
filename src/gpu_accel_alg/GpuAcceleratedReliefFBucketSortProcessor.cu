@@ -1,4 +1,4 @@
-#include "GpuAcceleratedReliefFProcessor.h"
+#include "GpuAcceleratedReliefFBucketSortProcessor.h"
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
@@ -11,17 +11,16 @@
 
 using namespace std;
 
-
-GpuAcceleratedReliefFProcessor::GpuAcceleratedReliefFProcessor(int kNearest){
+GpuAcceleratedReliefFBucketSortProcessor::GpuAcceleratedReliefFBucketSortProcessor(int kNearest){
 	parallelizationType = PARALLELIZE_ON_STAGES;
 	kNearestInstance = kNearest;
 }
 
-int GpuAcceleratedReliefFProcessor::getKNearest(){
+int GpuAcceleratedReliefFBucketSortProcessor::getKNearest(){
 	return kNearestInstance;
 }
 
-Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, int* packedSampleFeatureMatrix, bool* featureMask, char* labels){
+Result* GpuAcceleratedReliefFBucketSortProcessor::parallelizeCalculationOnStages(int numOfSamples, int numOfFeatures, char* sampleFeatureMatrix, int* packedSampleFeatureMatrix, bool* featureMask, char* labels){
 	
 	if(isDebugEnabled()){
 		cout<<"numOfSamples="<<numOfSamples<<", numOfFeatures="<<numOfFeatures<<endl;

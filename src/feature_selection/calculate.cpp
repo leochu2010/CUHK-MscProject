@@ -8,7 +8,9 @@
 #include "gpu_accel_alg/Processor.h"
 #include "gpu_accel_alg/GpuAcceleratedProcessor.h"
 #include "gpu_accel_alg/SimpleReliefFProcessor.h"
+#include "gpu_accel_alg/SimpleReliefFBucketSortProcessor.h"
 #include "gpu_accel_alg/GpuAcceleratedReliefFProcessor.h"
+#include "gpu_accel_alg/GpuAcceleratedReliefFBucketSortProcessor.h"
 #include "Constant.h"
 #include <iostream>
 #include "SNPArffParser.h"
@@ -31,6 +33,7 @@ const string T_Test = "t_test";
 const string P_Value = "pvalue";
 const string MutualInformation = "mutual_info";
 const string Relieff = "relieff";
+const string RelieffBucketSort = "relieff_bucket_sort";
 const string TunedRelieff = "tuned_relieff";
 
 struct ProcessorCommand{
@@ -95,13 +98,14 @@ Command parseCommand(int argc, char** argv){
 		algorithmArgAllowed.push_back(P_Value);
 		algorithmArgAllowed.push_back(MutualInformation);
 		algorithmArgAllowed.push_back(Relieff);
+		algorithmArgAllowed.push_back(RelieffBucketSort);
 		algorithmArgAllowed.push_back(T_Test);	
 		algorithmArgAllowed.push_back(TunedRelieff);
-		ValuesConstraint<string> algorithmArgAllowedVals( algorithmArgAllowed );
+		ValuesConstraint<string> algorithmArgAllowedVals(algorithmArgAllowed);
 		ValueArg<string> algorithmArg("a","algorithm","Data Mining Algorithm",true,"default",&algorithmArgAllowedVals);
 		cmd.add(algorithmArg);
 		
-		ValueArg<int> relieffKNearestArg("","k_nearest","K-Nearest instance for Relieff algorithm",false,5,"int");
+		ValueArg<int> relieffKNearestArg("","k_nearest","K-Nearest instance for ReliefF algorithm",false,5,"int");
 		cmd.add(relieffKNearestArg);
 		
 		ValueArg<int> cpuCoreArg("c","core","Number of CPU Core",false,0,"int");
@@ -235,6 +239,11 @@ GpuAcceleratedProcessor* getGpuAcceleratedProcessor(ProcessorCommand processorCo
 		return new GpuAcceleratedReliefFProcessor(kNearest);
 	}
 	
+	if(algorithm == RelieffBucketSort){
+		int kNearest = processorCommand.relieffKNearest;
+		return new GpuAcceleratedReliefFBucketSortProcessor(kNearest);
+	}
+	
 	return NULL;
 }
 
@@ -257,6 +266,11 @@ SimpleProcessor* getSimpleProcessor(ProcessorCommand processorCommand){
 	if(algorithm == Relieff){
 		int kNearest = processorCommand.relieffKNearest;
 		return new SimpleReliefFProcessor(kNearest);
+	}
+	
+	if(algorithm == RelieffBucketSort){
+		int kNearest = processorCommand.relieffKNearest;
+		return new SimpleReliefFBucketSortProcessor(kNearest);
 	}
 	
 	return NULL;
