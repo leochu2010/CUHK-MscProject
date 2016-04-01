@@ -1,4 +1,5 @@
 #include "GpuAcceleratedReliefFProcessor.h"
+#include <algorithm>
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
@@ -22,17 +23,43 @@ int GpuAcceleratedReliefFProcessor::getKNearest(){
 
 __global__ void gpu_generateDisatanceMatrix(
 		int samplePerThread,
-		int numOfSamples,			
-		int numOfFeatures,		
-		int intsPerInstance,		
-		int* d_packedSampleFeatureMatrix,		
+		int numOfSamples,
+		int intsPerInstance,
+		int* d_packedSampleFeatureMatrix,
 		int* d_distanceMatrix,
-		int* d_distanceHeaps
+		int* d_distanceHeaps,
+		int minSampleId,
+		int maxSampleId
 	){
 		
-	int sample1Id = gridDim.x * blockIdx.x + blockIdx.y;	
+	int sample1Id = gridDim.x * blockIdx.x + blockIdx.y;
 
 	if(sample1Id >= numOfSamples){
+		return;
+	}
+	
+	for(int i = 0; i < samplePerThread; i++){
+	
+		int sample2Id = threadIdx.x * samplePerThread + i;
+
+		if(sample2Id >= numOfSamples){
+			break;
+		}
+		
+		//put sample Id into heap
+		//prepare heap sort here
+		if(sample2Id > sample1Id){
+			d_distanceHeaps[(numOfSamples-1) * sample1Id + sample2Id-1] = sample2Id;				
+		}else if(sample2Id < sample1Id){
+			d_distanceHeaps[(numOfSamples-1) * sample1Id + sample2Id] = sample2Id;			
+		}
+	}
+	
+	if(sample1Id < minSampleId){
+		return;
+	}
+	
+	if(sample1Id > maxSampleId){
 		return;
 	}
 
@@ -50,14 +77,6 @@ __global__ void gpu_generateDisatanceMatrix(
 
 		if(sample2Id >= numOfSamples){
 			break;
-		}
-		
-		//put sample Id into heap
-		//prepare heap sort here
-		if(sample2Id > sample1Id){
-			d_distanceHeaps[(numOfSamples-1) * sample1Id + sample2Id-1] = sample2Id;				
-		}else if(sample2Id < sample1Id){
-			d_distanceHeaps[(numOfSamples-1) * sample1Id + sample2Id] = sample2Id;			
 		}
 		
 		if(sample2Id < sample1Id){
@@ -80,8 +99,12 @@ __global__ void gpu_generateDisatanceMatrix(
 		}
 		
 		d_distanceMatrix[numOfSamples * sample1Id + sample2Id] = distance;
-		d_distanceMatrix[numOfSamples * sample2Id + sample1Id] = distance;
+		//d_distanceMatrix[numOfSamples * sample2Id + sample1Id] = distance;
 
+		/*
+		if(threadIdx.x == 0 && sample1Id==0){
+			printf("sample1Id=%d, sample2Id=%d, distance=%d, d_distanceMatrix[numOfSamples * sample1Id + sample2Id]=%d\n", sample1Id, sample2Id, distance, d_distanceMatrix[numOfSamples * sample1Id + sample2Id]);
+		}*/
 	}
 }
 
@@ -113,7 +136,13 @@ __device__ int gpu_array_value(int *d_array, int *d_value, int id, int count, in
 		printf("array_offset=%d, count + 1=%d, id=%d, d_array[array_offset * count + id] = %d, d_valued=%d \n",array_offset,count+1,id,d_array[array_offset * count + id],d_value[array_offset * (count+1) + d_array[array_offset * count + id]]);			
 	}
 	*/	
-	return d_value[array_offset * (count+1) + d_array[array_offset * count + id]];		
+	int sample1Id = array_offset;
+	int sample2Id = d_array[array_offset * count + id];
+	if(sample1Id < sample2Id){
+		return d_value[sample1Id * (count+1) + sample2Id];
+	}else{
+		return d_value[sample2Id * (count+1) + sample1Id];
+	}	
 }
 
 __device__ void gpu_shiftDown(int *d_array, int start, int end, int *d_value, int count, int array_offset){
@@ -223,15 +252,24 @@ __device__ void gpu_heapSort(int *d_array, int count, int *d_value, int array_of
 }
 
 __global__ void gpu_heapSortDistance(
-		int numOfSamples,		
-		char* d_labels,
+		int numOfSamples,				
 		int* d_distanceHeaps,		
-		int* d_distanceMatrix
+		int* d_distanceMatrix,
+		int minSampleId,
+		int maxSampleId		
 	){
 
 	int sample1Id = gridDim.x * blockIdx.x + blockIdx.y;	
 
 	if(sample1Id >= numOfSamples){
+		return;
+	}
+	
+	if(sample1Id < minSampleId){
+		return;
+	}
+	
+	if(sample1Id > maxSampleId){
 		return;
 	}
 	
@@ -312,7 +350,9 @@ __global__ void gpu_weightFeatures(
 		bool* d_featureMask,
 		int* d_packedSampleFeatureMatrix,
 		float* d_weight,
-		float* d_finalWeight
+		float* d_finalWeight,
+		int minSampleId,
+		int maxSampleId	
 	){
 		
 	int sampleId = gridDim.x * blockIdx.x + blockIdx.y;
@@ -323,6 +363,15 @@ __global__ void gpu_weightFeatures(
 	if(sampleId >= numOfSamples){
 		return;
 	}
+	
+	if(sampleId < minSampleId){
+		return;
+	}
+	
+	if(sampleId > maxSampleId){
+		return;
+	}
+	
 	
 	gpu_findKNearest(numOfSamples, sampleId, d_distanceHeaps, d_kNearestHit, d_kNearestMiss, d_labels, kNearest);	
 	
@@ -377,53 +426,84 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 	processing.start();
 	
 	int kNearest = getKNearest();
+
+	int numOfDevices = getNumberOfDevice();
+	int samplesPerDevice = (int)ceil((float)numOfSamples / numOfDevices);
 	
-	bool* d_featureMask;
-	int* d_packedSampleFeatureMatrix;
-	int* d_distanceHeaps;	
-	int* d_distanceMatrix;	
-	char* d_labels;
+	bool* d_featureMask[numOfDevices];
+	int* d_packedSampleFeatureMatrix[numOfDevices];
+	int* d_distanceHeaps[numOfDevices];
+	int* d_distanceMatrix[numOfDevices];	
+	char* d_labels[numOfDevices];
+	
+	cudaStream_t stream[numOfDevices];
+	//cudaError_t streamResult[numOfDevices];		
 		
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		//streamResult[dev] = cudaStreamCreate(&stream[dev]);
+		cudaStreamCreate(&stream[dev]);
+	}
+	
 	//int intsPerInstance = numOfFeatures / 16 + (numOfFeatures % 16 == 0? 0 : 1);
 	int intsPerInstance = (int)ceil((float)numOfFeatures / 16);	
-	
-	cudaMalloc(&d_featureMask, numOfFeatures*sizeof(bool));
-	cudaMemcpy(d_featureMask, featureMask, numOfFeatures*sizeof(bool),cudaMemcpyHostToDevice);
-	getMemoryInfo("after featureMask cudaMalloc");
-	
-	cudaMalloc(&d_packedSampleFeatureMatrix, intsPerInstance * numOfSamples*sizeof(int));	
-	cudaMemcpy(d_packedSampleFeatureMatrix, packedSampleFeatureMatrix, intsPerInstance * numOfSamples*sizeof(int),cudaMemcpyHostToDevice);	
-	getMemoryInfo("after packedSampleFeatureMatrix cudaMalloc");
-	
-	cudaMalloc(&d_labels, numOfSamples*sizeof(char));
-	cudaMemcpy(d_labels, labels, numOfSamples*sizeof(char),cudaMemcpyHostToDevice);
-	getMemoryInfo("after labels cudaMalloc");	
 		
-	cudaMalloc(&d_distanceHeaps, numOfSamples * (numOfSamples-1) * sizeof(int));	
-	getMemoryInfo("after distanceHeaps cudaMalloc");
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaMalloc(&d_featureMask[dev], numOfFeatures*sizeof(bool));	
+		cudaMemcpyAsync(d_featureMask[dev], featureMask, numOfFeatures*sizeof(bool),cudaMemcpyHostToDevice,stream[dev]);
+		getMemoryInfo("after featureMask cudaMalloc");
+	}	
 	
-	cudaMalloc(&d_distanceMatrix, numOfSamples * numOfSamples * sizeof(int));
-	getMemoryInfo("after distanceMatrix cudaMalloc");
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaMalloc(&d_packedSampleFeatureMatrix[dev], intsPerInstance * numOfSamples*sizeof(int));	
+		cudaMemcpyAsync(d_packedSampleFeatureMatrix[dev], packedSampleFeatureMatrix, intsPerInstance * numOfSamples*sizeof(int),cudaMemcpyHostToDevice,stream[dev]);	
+		getMemoryInfo("after packedSampleFeatureMatrix cudaMalloc");
+	}	
 	
-	int* d_kNearestHit;
-	int* d_kNearestMiss;
-	cudaMalloc(&d_kNearestHit, kNearest * numOfSamples*sizeof(int));
-	getMemoryInfo("after kNearestHit cudaMalloc");
-	cudaMalloc(&d_kNearestMiss, kNearest * numOfSamples*sizeof(int));
-	getMemoryInfo("after kNearestMiss cudaMalloc");
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaMalloc(&d_labels[dev], numOfSamples*sizeof(char));
+		cudaMemcpyAsync(d_labels[dev], labels, numOfSamples*sizeof(char),cudaMemcpyHostToDevice,stream[dev]);
+		getMemoryInfo("after labels cudaMalloc");	
+	}	
+	
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaMalloc(&d_distanceHeaps[dev], numOfSamples * (numOfSamples-1) * sizeof(int));	
+		getMemoryInfo("after distanceHeaps cudaMalloc");
 		
-	float* finalWeight = (float*)calloc(numOfFeatures,sizeof(float));
-	float* d_weight;
-	float* d_finalWeight;
+		cudaMalloc(&d_distanceMatrix[dev], numOfSamples * numOfSamples * sizeof(int));
+		getMemoryInfo("after distanceMatrix cudaMalloc");
+	}
 	
-	cudaMalloc(&d_weight, numOfSamples*numOfFeatures*sizeof(float));
-	cudaMemset(d_weight, 0, numOfSamples*numOfFeatures*sizeof(float));
-	getMemoryInfo("after weight cudaMalloc");
+	int* d_kNearestHit[numOfDevices];
+	int* d_kNearestMiss[numOfDevices];
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaMalloc(&d_kNearestHit[dev], kNearest * numOfSamples*sizeof(int));
+		getMemoryInfo("after kNearestHit cudaMalloc");
+		cudaMalloc(&d_kNearestMiss[dev], kNearest * numOfSamples*sizeof(int));
+		getMemoryInfo("after kNearestMiss cudaMalloc");
+	}
+		
+	float* finalWeight[numOfDevices];
+	float* d_weight[numOfDevices];
+	float* d_finalWeight[numOfDevices];
 	
-	
-	cudaMalloc(&d_finalWeight, numOfFeatures*sizeof(float));	
-	cudaMemset(d_finalWeight, 0, numOfFeatures*sizeof(float));
-	getMemoryInfo("after finalWeight cudaMalloc");
+	for(int dev=0; dev<numOfDevices; dev++){
+		finalWeight[dev] = (float*)calloc(numOfFeatures,sizeof(float));
+		
+		cudaSetDevice(dev);
+		cudaMalloc(&d_weight[dev], numOfSamples*numOfFeatures*sizeof(float));
+		cudaMemset(d_weight[dev], 0, numOfSamples*numOfFeatures*sizeof(float));
+		getMemoryInfo("after weight cudaMalloc");
+		
+		cudaMalloc(&d_finalWeight[dev], numOfFeatures*sizeof(float));	
+		cudaMemset(d_finalWeight[dev], 0, numOfFeatures*sizeof(float));
+		getMemoryInfo("after finalWeight cudaMalloc");
+	}
 		
 	int grid2d = (int)ceil(pow(numOfSamples,1/2.));
 	int threadSize = getNumberOfThreadsPerBlock();
@@ -441,87 +521,202 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 	if(isDebugEnabled()){
 		cout<<"generate distance heaps"<<endl;
 	}
-	gpu_generateDisatanceMatrix<<<gridSize, threadSize>>>(		
-		samplePerThread,
-		numOfSamples,			
-		numOfFeatures,		
-		intsPerInstance,		
-		d_packedSampleFeatureMatrix,
-		d_distanceMatrix,
-		d_distanceHeaps		
-		);
-	cudaDeviceSynchronize();		
 	
-	if(this->isDebugEnabled()){		
-		cout<<"cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		int minSampleId = dev*samplesPerDevice;
+		int maxSampleId = dev*samplesPerDevice + samplesPerDevice -1;
+		gpu_generateDisatanceMatrix<<<gridSize, threadSize, 0, stream[dev]>>>(		
+			samplePerThread,
+			numOfSamples,		
+			intsPerInstance,		
+			d_packedSampleFeatureMatrix[dev],
+			d_distanceMatrix[dev],
+			d_distanceHeaps[dev],
+			minSampleId,
+			maxSampleId
+			);
+			
+		if(this->isDebugEnabled()){		
+			cout<<"device:"<<dev<<" cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+		}
+	}	
+		
+	//combine d_distanceMatrix;
+	int* all_distanceMatrix;
+	int* distanceMatrix[numOfDevices];
+	for(int dev=0; dev<numOfDevices; dev++){
+		distanceMatrix[dev] = (int*)malloc(numOfSamples * numOfSamples * sizeof(int));	
+	}
+	all_distanceMatrix = (int*)malloc(numOfSamples * numOfSamples * sizeof(int));		
+	
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaDeviceSynchronize();
+	}
+	
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaMemcpyAsync(distanceMatrix[dev], d_distanceMatrix[dev], numOfSamples * numOfSamples * sizeof(int), cudaMemcpyDeviceToHost, stream[dev]);				
+	}
+	
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaDeviceSynchronize();
+	}
+
+	/*
+	cout<<endl;
+	for(int s=0;s<numOfSamples;s++){
+		cout<<"sampleId:"<<s<<endl;
+		for(int i=0;i<numOfSamples;i++){
+			cout<<distanceMatrix[0][s*numOfSamples+i]<<" ";
+		}
+		cout<<endl;
+	}	
+	*/
+	
+	for(int dev=0; dev<numOfDevices; dev++){
+		int minSampleId = dev * samplesPerDevice;
+		int maxSampleId = minSampleId + samplesPerDevice -1;		
+		if(maxSampleId > numOfSamples-1){
+			maxSampleId = numOfSamples - 1;
+		}
+		
+		if(isDebugEnabled()){
+			cout<<"copy device "<<dev<<" distance matrix from sample:"<<minSampleId<<" to sample:"<<maxSampleId<<endl;
+		}
+		
+		copy(distanceMatrix[dev] + (minSampleId * numOfSamples), distanceMatrix[dev] + ((maxSampleId +1) * numOfSamples) -1, all_distanceMatrix + (minSampleId * numOfSamples));
+	}
+	
+	/*
+	cout<<endl;
+	cout<<"all Matrix"<<endl;
+	for(int s=0;s<numOfSamples;s++){
+		cout<<"sampleId:"<<s<<endl;
+		for(int i=0;i<numOfSamples;i++){
+			cout<<all_distanceMatrix[s*numOfSamples+i]<<" ";
+		}
+		cout<<endl;
+	}
+	*/
+	
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaMemcpyAsync(d_distanceMatrix[dev], all_distanceMatrix, numOfSamples * numOfSamples * sizeof(int), cudaMemcpyHostToDevice, stream[dev]);				
 	}
 	
 	if(isDebugEnabled()){
 		cout<<"heap sort distance"<<endl;
-	}	
+	}
 	
-	gpu_heapSortDistance<<<gridSize, 1>>>(
-		numOfSamples,	
-		d_labels,
-		d_distanceHeaps,		
-		d_distanceMatrix		
-	);
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaDeviceSynchronize();
+	}
 	
-	cudaDeviceSynchronize();		
-	
-	if(this->isDebugEnabled()){		
-		cout<<"cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		int minSampleId = dev*samplesPerDevice;
+		int maxSampleId = dev*samplesPerDevice + samplesPerDevice -1;
+		gpu_heapSortDistance<<<gridSize, 1, 0, stream[dev]>>>(
+			numOfSamples,		
+			d_distanceHeaps[dev],		
+			d_distanceMatrix[dev],
+			minSampleId,
+			maxSampleId		
+		);
+		
+		if(this->isDebugEnabled()){		
+			cout<<"device:"<<dev<<" cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+		}
 	}
 	
 	if(isDebugEnabled()){
 		cout<<"weight features"<<endl;
 	}	
 	
-	gpu_weightFeatures<<<gridSize,1>>>(
-		kNearest,
-		numOfFeatures,
-		numOfSamples,
-		intsPerInstance,
-		d_labels,
-		d_kNearestHit,
-		d_kNearestMiss,
-		d_distanceHeaps,		
-		d_featureMask,
-		d_packedSampleFeatureMatrix,
-		d_weight,
-		d_finalWeight
-	);
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		int minSampleId = dev*samplesPerDevice;
+		int maxSampleId = dev*samplesPerDevice + samplesPerDevice -1;
+		gpu_weightFeatures<<<gridSize,1>>>(
+			kNearest,
+			numOfFeatures,
+			numOfSamples,
+			intsPerInstance,
+			d_labels[dev],
+			d_kNearestHit[dev],
+			d_kNearestMiss[dev],
+			d_distanceHeaps[dev],		
+			d_featureMask[dev],
+			d_packedSampleFeatureMatrix[dev],
+			d_weight[dev],
+			d_finalWeight[dev],
+			minSampleId,
+			maxSampleId	
+		);
+		
+		if(this->isDebugEnabled()){		
+			cout<<"device:"<<dev<<" cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+		}
+	}
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaDeviceSynchronize();
+	}
+		
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaMemcpyAsync(finalWeight[dev], d_finalWeight[dev], numOfFeatures*sizeof(float), cudaMemcpyDeviceToHost, stream[dev]);
+	}
 			
-	cudaDeviceSynchronize();
-	
-	if(this->isDebugEnabled()){		
-		cout<<"cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+	for(int dev=0; dev<numOfDevices; dev++){
+		cudaSetDevice(dev);
+		cudaDeviceSynchronize();
 	}
 	
-	cudaMemcpy(finalWeight, d_finalWeight, numOfFeatures*sizeof(float), cudaMemcpyDeviceToHost);
-			
 	if(isDebugEnabled()){
 		cout<<"generate result"<<endl;
 	}
 	Result* result = new Result;
 	result->scores = new double[numOfFeatures];
 	int divider = numOfSamples * kNearest;
+	
 	for(int i=0;i<numOfFeatures;i++){
-		result->scores[i] = finalWeight[i]/divider;
+		result->scores[i]=0;
+		//cout<<endl<<"feature "<<i<<"=";		
+		for(int dev=0; dev<numOfDevices; dev++){			
+			result->scores[i] += finalWeight[dev][i];
+			//cout<<finalWeight[dev][i];
+		}		
+		result->scores[i] /= divider;
+		//cout<<"="<<result->scores[i]<<"/"<<divider<<"="<<result->scores[i];
 	}
 	result->success = true;	
-		
-	free(finalWeight);
 	
-	cudaFree(d_packedSampleFeatureMatrix);	
-	cudaFree(d_labels);
-	cudaFree(d_distanceHeaps);	
-	cudaFree(d_featureMask);	
-	cudaFree(d_labels);
-	cudaFree(d_kNearestHit);
-	cudaFree(d_kNearestMiss);
-	cudaFree(d_weight);
-	cudaFree(d_finalWeight);
+	if(isDebugEnabled()){
+		cout<<"free memory"<<endl;
+	}
+	
+	free(all_distanceMatrix);
+	
+	for(int dev=0; dev<numOfDevices;dev++){
+		free(finalWeight[dev]);
+		
+		cudaFree(d_packedSampleFeatureMatrix[dev]);	
+		cudaFree(d_labels[dev]);
+		cudaFree(d_distanceHeaps[dev]);	
+		cudaFree(d_distanceMatrix[dev]);
+		cudaFree(d_featureMask[dev]);	
+		cudaFree(d_labels[dev]);
+		cudaFree(d_kNearestHit[dev]);
+		cudaFree(d_kNearestMiss[dev]);
+		cudaFree(d_weight[dev]);
+		cudaFree(d_finalWeight[dev]);
+		cudaStreamDestroy(stream[dev]);
+	}
 	
 	processing.stop();
 	result->startTime=processing.getStartTime();
