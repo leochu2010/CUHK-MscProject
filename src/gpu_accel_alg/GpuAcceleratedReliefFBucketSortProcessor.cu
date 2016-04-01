@@ -342,9 +342,9 @@ Result* GpuAcceleratedReliefFBucketSortProcessor::parallelizeCalculationOnStages
 	}
 	Result* result = new Result;
 	result->scores = new double[numOfFeatures];
-	int divider = numOfSamples * kNearest;
+	int divisor = numOfSamples * kNearest;
 	for(int i=0;i<numOfFeatures;i++){
-		result->scores[i] = finalWeight[i]/divider;
+		result->scores[i] = finalWeight[i]/divisor;
 	}
 	result->success = true;	
 		

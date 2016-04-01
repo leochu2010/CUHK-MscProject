@@ -519,7 +519,7 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 	dim3 gridSize(grid2d,grid2d);
 	
 	if(isDebugEnabled()){
-		cout<<"generate distance heaps"<<endl;
+		cout<<"generate distance matrix"<<endl;
 	}
 	
 	for(int dev=0; dev<numOfDevices; dev++){
@@ -682,7 +682,7 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 	}
 	Result* result = new Result;
 	result->scores = new double[numOfFeatures];
-	int divider = numOfSamples * kNearest;
+	int divisor = numOfSamples * kNearest;
 	
 	for(int i=0;i<numOfFeatures;i++){
 		result->scores[i]=0;
@@ -691,8 +691,8 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 			result->scores[i] += finalWeight[dev][i];
 			//cout<<finalWeight[dev][i];
 		}		
-		result->scores[i] /= divider;
-		//cout<<"="<<result->scores[i]<<"/"<<divider<<"="<<result->scores[i];
+		result->scores[i] /= divisor;
+		//cout<<"="<<result->scores[i]<<"/"<<divisor<<"="<<result->scores[i];
 	}
 	result->success = true;	
 	
