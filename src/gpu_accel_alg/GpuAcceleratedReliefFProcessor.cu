@@ -705,17 +705,21 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 	for(int dev=0; dev<numOfDevices;dev++){
 		free(finalWeight[dev]);
 		
+		cudaSetDevice(dev);
 		cudaFree(d_packedSampleFeatureMatrix[dev]);	
-		cudaFree(d_labels[dev]);
-		cudaFree(d_distanceHeaps[dev]);	
+		cudaFree(d_labels[dev]);		
+		cudaFree(d_distanceHeaps[dev]);			
 		cudaFree(d_distanceMatrix[dev]);
 		cudaFree(d_featureMask[dev]);	
-		cudaFree(d_labels[dev]);
 		cudaFree(d_kNearestHit[dev]);
 		cudaFree(d_kNearestMiss[dev]);
 		cudaFree(d_weight[dev]);
 		cudaFree(d_finalWeight[dev]);
 		cudaStreamDestroy(stream[dev]);
+		
+		if(this->isDebugEnabled()){		
+			cout<<"device:"<<dev<<" cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+		}
 	}
 	
 	processing.stop();

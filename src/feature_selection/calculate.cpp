@@ -393,11 +393,16 @@ void processFile(Command command){
 		long processingTime[testNum];
 		
 		Processor* myProcessor = getProcessor(command.processorCommand);
-				
+		
+		if(command.processorCommand.gpuAcceleration){
+			//warm up GPU before performance test
+			myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);
+		}
+			
 		for(int i=0;i<testNum;i++){
 			Result* r = myProcessor->calculate(arff->SampleCount, arff->FeatureCount, arff->Matrix, featureMask, arff->Labels);			
 			processingTime[i] = r->endTime - r->startTime;
-		}		
+		}
 		exportPerformance(processingTime, testNum, "test", output, outputCommand);
 		
 		if (!outputCommand.stdout){
