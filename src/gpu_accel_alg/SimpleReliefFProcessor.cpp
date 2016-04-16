@@ -46,11 +46,8 @@ void generateDisatanceMatrix(
 			
 			distanceMatrix[numOfSamples * sample1Id + sample2Id] = distance;
 			//distanceMatrix[numOfSamples * sample2Id + sample1Id] = distance;
-
-			/*
-			if(threadIdx.x == 0 && sample1Id==0){
-				printf("sample1Id=%d, sample2Id=%d, distance=%d, distanceMatrix[numOfSamples * sample1Id + sample2Id]=%d\n", sample1Id, sample2Id, distance, distanceMatrix[numOfSamples * sample1Id + sample2Id]);
-			}*/
+			//printf("sample1Id=%d, sample2Id=%d, distance=%d, distanceMatrix[numOfSamples * sample1Id + sample2Id]=%d\n", sample1Id, sample2Id, distance, distanceMatrix[numOfSamples * sample1Id + sample2Id]);
+			
 		}
 	}
 }
@@ -311,9 +308,11 @@ void weightFeatures(
 		}
 		*/
 			
-		for(int k=0; k<kNearest; k++){		
+		for(int k=0; k<kNearest; k++){
 			int hitSampleId = kNearestHit[sampleId * kNearest + k];
 			int missSampleId = kNearestMiss[sampleId * kNearest + k];
+			
+			//cout<<"sampleId="<<sampleId<<", k="<<k<<", hit="<<hitSampleId<<", miss="<<missSampleId<<endl;
 			
 			for(int i=0;i<intsPerInstance;i++){
 				int instanceInt = packedSampleFeatureMatrix[sampleId * intsPerInstance + i];
@@ -332,10 +331,12 @@ void weightFeatures(
 						int deltaHit = ((instanceInt >> offset * 2) & 0x3) == ((hitInt >> offset * 2) & 0x3)? 0 : 1;
 						int deltaMiss = ((instanceInt >> offset * 2) & 0x3) == ((missInt >> offset * 2) & 0x3)? 0 : 1;
 						float score = deltaMiss - deltaHit;
+						//cout<<"sampleId="<<sampleId<<", k="<<k<<", hit="<<hitSampleId<<", miss="<<missSampleId<<", attributeIdx="<<attributeIdx <<", delteHit="<<deltaHit<<", deltaMiss="<<deltaMiss<<", score="<<score<<" ,weight="<<weight[sampleId * numOfFeatures + attributeIdx];
 						weight[sampleId * numOfFeatures + attributeIdx] += score;					
-					}
+						//cout<<"-->"<<weight[sampleId * numOfFeatures + attributeIdx]<<endl;;						
+					}					
 				}
-			}
+			}			
 		}
 		
 		for(int i=0; i<numOfFeatures; i++){		

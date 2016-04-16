@@ -60,11 +60,17 @@ void GpuAcceleratedPValueProcessor::calculateOnStream(int* numberOfFeaturesPerSt
 	
 	int maxFeaturesPerStream = numberOfFeaturesPerStream[0];
 
+	getMemoryInfo("before cudaMalloc");
+	
 	for(int i=0; i<streamCount; i++){
 		cudaMalloc(&d_label0Array[i],maxFeaturesPerStream*numOfLabel0Samples*sizeof(char));
 		cudaMalloc(&d_label1Array[i],maxFeaturesPerStream*numOfLabel1Samples*sizeof(char));
 		cudaMalloc(&d_score[i],maxFeaturesPerStream*sizeof(double));
 		cudaMalloc(&d_featureMask[i],maxFeaturesPerStream*sizeof(bool));
+		if(isDebugEnabled()){
+			cout<<"device:"<<device<<", steam "<<i<<" cuda malloc"<<endl;
+		}
+		getMemoryInfo("after cudaMalloc");	
 	}	
 	
 	for(int i=0; i<streamCount; i++){
@@ -95,11 +101,11 @@ void GpuAcceleratedPValueProcessor::calculateOnStream(int* numberOfFeaturesPerSt
 				numberOfFeaturesPerStream[i],
 				NLoopPerThread,
 				device);
+				
+		if(this->isDebugEnabled()){		
+			cout<<"device:"<<device<<", stream:"<<i<<" cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+		}
 	}
-			
-	if(this->isDebugEnabled()){
-		cout<<"cudaPeekAtLastError:"<<cudaPeekAtLastError()<<endl;
-	}	
 		
 	//copy result from GPU to main memory
 	for(int i=0; i<streamCount; i++){

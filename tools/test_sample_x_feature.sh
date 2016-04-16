@@ -125,7 +125,7 @@ echo "%=========================================================================
 echo "$MATLAB_SAMPLE_ARRAY">> ./result/$TOKEN
 echo "$MATLAB_FEATURE_ARRAY">> ./result/$TOKEN
 echo "$MATLAB_PROCESSING_TIME_ARRAY">> ./result/$TOKEN
-echo "surf(processing_time_ms)">> ./result/$TOKEN
+echo "surf(samples, features, processing_time_ms)">> ./result/$TOKEN
 
 echo "$MATLAB_SAMPLE_ARRAY"
 echo "$MATLAB_FEATURE_ARRAY"

@@ -1,5 +1,5 @@
 CC=/opt/gcc481/bin/g++
-CFLAGS=-Wall -Wno-sign-compare -std=c++11
+CFLAGS=-Wall -Wno-sign-compare -std=c++11 -m64
 
 LIB_SOURCES=gpu_accel_alg/*.cpp gpu_accel_alg/utils/*.cpp
 LIB_CUDA_SOURCES=gpu_accel_alg/*.cu

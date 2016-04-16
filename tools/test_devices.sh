@@ -1,42 +1,54 @@
+# export into 3 files, x: samples, y: features, z: processing time
+# combine into 1 at last
+
 
 echo "#test for $1 times"
 
-TEST_TIMES=$1
-DEVICE_FROM=$2
-DEVICE_TO=$3
-DEVICE_STEP=$4
-INPUT_FILE=$5
+CALCULATE=$1
+TEST_TIMES=$2
+MIN_DEVICE=$3
+MAX_DEVICE=$4
 
-TOKEN="tmp_device_"
+#generate matlab array
+MATLAB_DEVICE_ARRAY="devices=["
+
+for (( d=$MIN_DEVICE; d <= $MAX_DEVICE; d+=1))
+do	
+	MATLAB_DEVICE_ARRAY="$MATLAB_DEVICE_ARRAY $d"
+done
+
+MATLAB_DEVICE_ARRAY=$MATLAB_DEVICE_ARRAY"];"
+
+TOKEN="tmp_Device_$(date +%s)"
 
 #create device number matlab array
-echo -e "device=[\c"
-for (( t=$DEVICE_FROM; t <= $DEVICE_TO; t+=$DEVICE_STEP ))
-do
-	echo -e "$t \c"
-	> ./tmp/$TOKEN$t
+
+
+for (( d=$MIN_DEVICE; d <= $MAX_DEVICE; d+=1))
+do	
+	> ./tmp/$TOKEN-$d
 done
-echo "];"
+
 
 #put result into separated tmp files
 for i in `seq 1 $TEST_TIMES`
 do	
-	#total=0	
-	for (( t=$DEVICE_FROM; t <= $DEVICE_TO; t+=$DEVICE_STEP ))
-	do   
-		RESULT=$(./../cal -algorithm pvalue -processor gpu -test 1 -device $t -thread 256 -file $INPUT_FILE -stdout processing_time)
-		#echo -e "$(echo $RESULT | cut -d ' ' -f 2) \c"
+	for (( d=$MIN_DEVICE; d <= $MAX_DEVICE; d+=1))
+	do		
+		COMMAND="$CALCULATE --stdout --display_processing_time --device $d --test 1"		
+		#echo $COMMAND
+		RESULT=$($COMMAND)
 		processing_time=$(echo $RESULT | cut -d ' ' -f 2)
-		echo $processing_time >> ./tmp/$TOKEN$t
-		#total=$(($total + $processing_time))
-	done		
+		echo "test $i, $d device processing time: $processing_time ms"
+		echo $processing_time >> ./tmp/$TOKEN-$d
+	done
 done
 
 #calculate avg
 re='^[0-9]+$'
-echo -e "processing_time_ms=[\c"
-for (( t=$DEVICE_FROM; t <= $DEVICE_TO; t+=$DEVICE_STEP ))
-do
+MATLAB_PROCESSING_TIME_ARRAY="processing_time_ms=["
+for (( d=$MIN_DEVICE; d <= $MAX_DEVICE; d+=1))
+do	
 	total=0	
 	#read file line by line
 	while read -r line 
@@ -45,8 +57,21 @@ do
 		if [[ $processing_time =~ $re ]] ; then
 			total=$(($total + $processing_time))
 		fi
-	done < ./tmp/$TOKEN$t
-	#calculate avg
-	echo -e "$(($total/$TEST_TIMES)) \c"
+	done < ./tmp/$TOKEN-$d
+	#calculate avg	
+	MATLAB_PROCESSING_TIME_ARRAY="$MATLAB_PROCESSING_TIME_ARRAY $(($total/$TEST_TIMES))"		
 done
-echo "];"
+MATLAB_PROCESSING_TIME_ARRAY="$MATLAB_PROCESSING_TIME_ARRAY ];"
+
+echo "%=========================================================================================" >> ./result/$TOKEN
+echo "%Command: $CALCULATE">> ./result/$TOKEN
+echo "%Number of test for each device number: $TEST_TIMES">> ./result/$TOKEN
+echo "%Min Device $MIN_DEVICE -> Max Device MAX_DEVICE" >> ./result/$TOKEN
+echo "%=========================================================================================" >> ./result/$TOKEN
+echo "$MATLAB_DEVICE_ARRAY">> ./result/$TOKEN
+echo "$MATLAB_PROCESSING_TIME_ARRAY">> ./result/$TOKEN
+echo "plot(devices, processing_time_ms)">> ./result/$TOKEN
+
+echo "$MATLAB_DEVICE_ARRAY"
+echo "$MATLAB_PROCESSING_TIME_ARRAY"
+echo "plot(devices, processing_time_ms)"

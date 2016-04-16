@@ -271,6 +271,8 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 	int maxFeaturesPerStream = numberOfFeaturesPerStream[0];
 	
 	int **exception = (int**)malloc(streamCount * sizeof(int*));	
+	
+	getMemoryInfo("before cudaMalloc");
 
 	for(int i=0; i<streamCount; i++){		
 		cudaMalloc(&d_label0Array[i],maxFeaturesPerStream*numOfLabel0Samples*sizeof(char));
@@ -279,8 +281,18 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 		cudaMalloc(&d_featureMask[i],maxFeaturesPerStream*sizeof(bool));
 		cudaMalloc(&d_exception[i],sizeof(int));		
 		
+		if(isDebugEnabled()){
+			cout<<"device:"<<device<<", steam "<<i<<" cuda malloc"<<endl;
+		}
+		
+		getMemoryInfo("after cudaMalloc");	
+		
 		exception[i] = (int*)malloc(sizeof(int));		
 		exception[i][0] = 0;
+		
+		if(isDebugEnabled()){
+			cout <<"steam "<<i<<" cuda malloc"<<endl;
+		}		
 	}	
 	
 	for(int i=0; i<streamCount; i++){
@@ -307,11 +319,11 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 				d_featureMask[i],
 				numberOfFeaturesPerStream[i],
 				d_score[i], device, d_exception[i]);
+				
+		if(this->isDebugEnabled()){		
+			cout<<"device:"<<device<<", stream:"<<i<<" cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+		}
 	}
-			
-	if(this->isDebugEnabled()){
-		cout<<"cudaPeekAtLastError:"<<cudaPeekAtLastError()<<endl;
-	}	
 		
 	//copy result from GPU to main memory
 	for(int i=0; i<streamCount; i++){
