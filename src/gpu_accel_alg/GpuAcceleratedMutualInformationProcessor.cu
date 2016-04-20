@@ -218,23 +218,25 @@ __global__ void calculateMutualInformation(
 	}
 }
 
-void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFeaturesPerStream,
-	char** label0SamplesArray_stream_feature, int numOfLabel0Samples,
-	char** label1SamplesArray_stream_feature, int numOfLabel1Samples,
-	bool** featureMasksArray_stream_feature,
-	double** score,
-	int device,
-	cudaStream_t* streams,
-	bool* success, string* errorMessage){
+void GpuAcceleratedMutualInformationProcessor::calculateOnDeviceWithStream(int** numberOfFeaturesPerStream,
+			char*** label0SamplesArray_stream_feature, int numOfLabel0Samples,
+			char*** label1SamplesArray_stream_feature, int numOfLabel1Samples,
+			bool*** featureMasksArray_stream_feature,		
+			double*** score,			
+			cudaStream_t** streams,
+			bool* success, string* errorMessage){
 			
 	*success = true;
 			
 	int streamCount = getNumberOfStreamsPerDevice();
+	int deviceCount = getNumberOfDevice();
 			
 	if (numOfLabel0Samples != numOfLabel1Samples){
-		for(int i=0; i<streamCount; i++){
-			for(int j=0; j<numberOfFeaturesPerStream[i];j++){
-				score[i][j]=INVALID_FEATURE;
+		for(int d=0; d<deviceCount; d++){
+			for(int i=0; i<streamCount; i++){
+				for(int j=0; j<numberOfFeaturesPerStream[d][i];j++){
+					score[d][i][j]=INVALID_FEATURE;
+				}
 			}
 		}
 		*success = false;
@@ -256,111 +258,154 @@ void GpuAcceleratedMutualInformationProcessor::calculateOnStream(int* numberOfFe
 	size_t samplesPerThread = ceil((numOfLabel0Samples/(float)(threadSize)));	
 	
 	//copy data from main memory to GPU		
-	char *d_label0Array[streamCount];
-	char *d_label1Array[streamCount];
-	double *d_score[streamCount];
-	bool *d_featureMask[streamCount];
-	int *d_exception[streamCount];
+	
+	char *d_label0Array[deviceCount][streamCount];
+	char *d_label1Array[deviceCount][streamCount];
+	double *d_score[deviceCount][streamCount];
+	bool *d_featureMask[deviceCount][streamCount];
+	int *d_exception[deviceCount][streamCount];
 		
 	if(this->isDebugEnabled()){
 		cout << "copy to GPU"<<endl;
 	}
-		
-	cudaSetDevice(device);
 	
-	int maxFeaturesPerStream = numberOfFeaturesPerStream[0];
-	
-	int **exception = (int**)malloc(streamCount * sizeof(int*));	
+	int ***exception = (int***)malloc(deviceCount * sizeof(int**));
+	for(int d=0; d<deviceCount; d++){
+		exception[d] = (int**)malloc(streamCount * sizeof(int*));	
+	}
 	
 	getMemoryInfo("before cudaMalloc");
 
-	for(int i=0; i<streamCount; i++){		
-		cudaMalloc(&d_label0Array[i],maxFeaturesPerStream*numOfLabel0Samples*sizeof(char));
-		cudaMalloc(&d_label1Array[i],maxFeaturesPerStream*numOfLabel1Samples*sizeof(char));
-		cudaMalloc(&d_score[i],maxFeaturesPerStream*sizeof(double));
-		cudaMalloc(&d_featureMask[i],maxFeaturesPerStream*sizeof(bool));
-		cudaMalloc(&d_exception[i],sizeof(int));		
-		
-		if(isDebugEnabled()){
-			cout<<"device:"<<device<<", steam "<<i<<" cuda malloc"<<endl;
-		}
-		
-		getMemoryInfo("after cudaMalloc");	
-		
-		exception[i] = (int*)malloc(sizeof(int));		
-		exception[i][0] = 0;
-		
-		if(isDebugEnabled()){
-			cout <<"steam "<<i<<" cuda malloc"<<endl;
-		}		
-	}	
 	
-	for(int i=0; i<streamCount; i++){
-		int features = numberOfFeaturesPerStream[i];
-		cudaMemcpyAsync(d_label0Array[i],label0SamplesArray_stream_feature[i],features*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice,streams[i]);
-		cudaMemcpyAsync(d_label1Array[i],label1SamplesArray_stream_feature[i],features*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice,streams[i]);
-		cudaMemcpyAsync(d_score[i],score[i],features*sizeof(double),cudaMemcpyHostToDevice,streams[i]);
-		cudaMemcpyAsync(d_featureMask[i],featureMasksArray_stream_feature[i],features*sizeof(bool),cudaMemcpyHostToDevice,streams[i]);		
-		cudaMemcpyAsync(d_exception[i],exception[i],sizeof(int),cudaMemcpyHostToDevice,streams[i]);
-	}
+	for(int device=0; device<deviceCount; device++){
+		cudaSetDevice(device);	
+		int maxFeaturesPerStream = numberOfFeaturesPerStream[device][0];
 		
-	int grid2d = (int)ceil(pow(maxFeaturesPerStream,1/2.));	
-	if(this->isDebugEnabled()){
-		cout<<"maxFeaturesPerStream="<<maxFeaturesPerStream<<",grid2d="<<grid2d<<",numOfLabel0Samples="<<numOfLabel0Samples<<",numOfLabel1Samples="<<numOfLabel1Samples<<",threadSize="<<threadSize<<endl;
+		for(int i=0; i<streamCount; i++){		
+			cudaMalloc(&d_label0Array[device][i],maxFeaturesPerStream*numOfLabel0Samples*sizeof(char));
+			cudaMalloc(&d_label1Array[device][i],maxFeaturesPerStream*numOfLabel1Samples*sizeof(char));
+			cudaMalloc(&d_score[device][i],maxFeaturesPerStream*sizeof(double));
+			cudaMalloc(&d_featureMask[device][i],maxFeaturesPerStream*sizeof(bool));
+			cudaMalloc(&d_exception[device][i],sizeof(int));		
+			
+			if(isDebugEnabled()){
+				cout<<"device:"<<device<<", steam "<<i<<" cuda malloc"<<endl;
+			}
+			
+			getMemoryInfo("after cudaMalloc");	
+			
+			exception[device][i] = (int*)malloc(sizeof(int));		
+			exception[device][i][0] = 0;
+			
+			if(isDebugEnabled()){
+				cout <<"steam "<<i<<" cuda malloc"<<endl;
+			}		
+		}	
 	}
 	
-	dim3 gridSize(grid2d,grid2d);
-	
-	//calculate	
-	for(int i=0; i<streamCount; i++){
-		calculateMutualInformation<<<gridSize, threadSize, 0, streams[i]>>>(
-				d_label0Array[i], d_label1Array[i], 
-				numOfLabel0Samples, samplesPerThread,
-				d_featureMask[i],
-				numberOfFeaturesPerStream[i],
-				d_score[i], device, d_exception[i]);
-				
-		if(this->isDebugEnabled()){		
-			cout<<"device:"<<device<<", stream:"<<i<<" cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+	for(int device=0; device<deviceCount; device++){
+		cudaSetDevice(device);	
+		
+		for(int i=0; i<streamCount; i++){
+			int features = numberOfFeaturesPerStream[device][i];
+			cudaMemcpyAsync(d_label0Array[device][i],label0SamplesArray_stream_feature[device][i],features*numOfLabel0Samples*sizeof(char),cudaMemcpyHostToDevice,streams[device][i]);
+			cudaMemcpyAsync(d_label1Array[device][i],label1SamplesArray_stream_feature[device][i],features*numOfLabel1Samples*sizeof(char),cudaMemcpyHostToDevice,streams[device][i]);
+			cudaMemcpyAsync(d_score[device][i],score[device][i],features*sizeof(double),cudaMemcpyHostToDevice,streams[device][i]);
+			cudaMemcpyAsync(d_featureMask[device][i],featureMasksArray_stream_feature[device][i],features*sizeof(bool),cudaMemcpyHostToDevice,streams[device][i]);		
+			cudaMemcpyAsync(d_exception[device][i],exception[device][i],sizeof(int),cudaMemcpyHostToDevice,streams[device][i]);
 		}
 	}
+	
+	for(int dev=0; dev<deviceCount; dev++){
+		cudaSetDevice(dev);
+		cudaDeviceSynchronize();
+ 	}
+	
+	for(int device=0; device<deviceCount; device++){
 		
-	//copy result from GPU to main memory
-	for(int i=0; i<streamCount; i++){
-		int features = numberOfFeaturesPerStream[i];
-		cudaMemcpyAsync(score[i], d_score[i], features*sizeof(double), cudaMemcpyDeviceToHost,streams[i]);
-		cudaMemcpyAsync(exception[i], d_exception[i], features*sizeof(int), cudaMemcpyDeviceToHost,streams[i]);		
+		cudaSetDevice(device);	
+		int maxFeaturesPerStream = numberOfFeaturesPerStream[device][0];
+		
+		//calculate		
+		int grid2d = (int)ceil(pow(maxFeaturesPerStream,1/2.));	
+		if(this->isDebugEnabled()){
+			cout<<"maxFeaturesPerStream="<<maxFeaturesPerStream<<",grid2d="<<grid2d<<",numOfLabel0Samples="<<numOfLabel0Samples<<",numOfLabel1Samples="<<numOfLabel1Samples<<",threadSize="<<threadSize<<endl;
+		}
+		
+		dim3 gridSize(grid2d,grid2d);
+		
+		
+		for(int i=0; i<streamCount; i++){
+			calculateMutualInformation<<<gridSize, threadSize, 0, streams[device][i]>>>(
+					d_label0Array[device][i], d_label1Array[device][i], 
+					numOfLabel0Samples, samplesPerThread,
+					d_featureMask[device][i],
+					numberOfFeaturesPerStream[device][i],
+					d_score[device][i], device, d_exception[device][i]);
+					
+			if(this->isDebugEnabled()){		
+				cout<<"device:"<<device<<", stream:"<<i<<" cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+			}
+		}
+	}
+	
+	for(int dev=0; dev<deviceCount; dev++){
+		cudaSetDevice(dev);
+		cudaDeviceSynchronize();
+ 	}
+
+	for(int device=0; device<deviceCount; device++){
+		
+		cudaSetDevice(device);	
+		//copy result from GPU to main memory
+		for(int i=0; i<streamCount; i++){
+			int features = numberOfFeaturesPerStream[device][i];
+			cudaMemcpyAsync(score[device][i], d_score[device][i], features*sizeof(double), cudaMemcpyDeviceToHost,streams[device][i]);
+			cudaMemcpyAsync(exception[device][i], d_exception[device][i], features*sizeof(int), cudaMemcpyDeviceToHost,streams[device][i]);		
+		}
 	}
 	if(this->isDebugEnabled()){		
 		cout<<"copied data from device to host"<<endl;
 	}
 
-	cudaDeviceSynchronize();
-		
-	for(int i=0; i<streamCount; i++){
-		
-		if(exception[i][0] < 0){
-			*success = false;
-			*errorMessage = "firstNumStates/secondNumStates/jointNumStates is too big";
-			if(this->isDebugEnabled()){
-				cout<<"exception[i]"<<exception[i][0]<<endl;
-				cout<<"error found"<<endl;
-			}
-		}				
+	for(int dev=0; dev<deviceCount; dev++){
+		cudaSetDevice(dev);
+		cudaDeviceSynchronize();
+ 	}
+
+	for(int device=0; device<deviceCount; device++){
+		for(int i=0; i<streamCount; i++){
+			
+			if(exception[device][i][0] < 0){
+				*success = false;
+				*errorMessage = "firstNumStates/secondNumStates/jointNumStates is too big";
+				if(this->isDebugEnabled()){
+					cout<<"exception[i]"<<exception[device][i][0]<<endl;
+					cout<<"error found"<<endl;
+				}
+			}				
+		}
 	}
 		
 	//free cuda memory	
-	//destroy streams
-	for(int i=0; i<streamCount; i++){
-		if(isDebugEnabled()){
-			cout<<"cudafree resources"<<endl;
+	for(int device=0; device<deviceCount; device++){
+		for(int i=0; i<streamCount; i++){
+			if(isDebugEnabled()){
+				cout<<"cudafree resources"<<endl;
+			}		
+			cudaFree(d_label1Array[device][i]);
+			cudaFree(d_label0Array[device][i]);
+			cudaFree(d_score[device][i]);
+			cudaFree(d_featureMask[device][i]);		
+			cudaFree(d_exception[device][i]);		
+			free(exception[device][i]);
 		}		
-		cudaFree(d_label1Array[i]);
-		cudaFree(d_label0Array[i]);
-		cudaFree(d_score[i]);
-		cudaFree(d_featureMask[i]);		
-		cudaFree(d_exception[i]);		
-		free(exception[i]);
-	}	
+	}
+	
+	for(int device=0; device<deviceCount; device++){
+		free(exception[device]);
+	}			
+	
 	free(exception);
+	
 }	
