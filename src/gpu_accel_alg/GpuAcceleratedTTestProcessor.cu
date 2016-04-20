@@ -22,14 +22,13 @@ __global__ void calculate_ttest(
 	size_t numOfFeatures,	
 	int device);
 
-void GpuAcceleratedTTestProcessor::calculateOnStream(int* numberOfFeaturesPerStream,
-	char** label0SamplesArray_stream_feature, int numOfLabel0Samples,
-	char** label1SamplesArray_stream_feature, int numOfLabel1Samples,
-	bool** featureMasksArray_stream_feature,
-	double** score,
-	int device,
-	cudaStream_t* streams,
-	bool* success, string* errorMessage){
+void GpuAcceleratedTTestProcessor::calculateOnDeviceWithStream(int** numberOfFeaturesPerStream,
+			char*** label0SamplesArray_stream_feature, int numOfLabel0Samples,
+			char*** label1SamplesArray_stream_feature, int numOfLabel1Samples,
+			bool*** featureMasksArray_stream_feature,		
+			double*** score,			
+			cudaStream_t** streams,
+			bool* success, string* errorMessage)
 			
 	*success = true;
 	
