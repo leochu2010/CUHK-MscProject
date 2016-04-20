@@ -28,41 +28,39 @@ __global__ void gpu_generateDisatanceMatrix(
 		int* d_packedSampleFeatureMatrix,
 		int* d_distanceMatrix,
 		int* d_distanceHeaps,
-		int minSampleId,
-		int maxSampleId
+		int deviceId,
+		int totalDevice		
 	){
 		
 	int sample1Id = gridDim.x * blockIdx.x + blockIdx.y;
 
+	if(sample1Id < numOfSamples){
+		for(int i = 0; i < samplePerThread; i++){
+		
+			int sample2Id = threadIdx.x * samplePerThread + i;
+
+			if(sample2Id >= numOfSamples){
+				break;
+			}
+			
+			//put sample Id into heap
+			//prepare heap sort here
+			if(sample2Id > sample1Id){
+				d_distanceHeaps[(numOfSamples-1) * sample1Id + sample2Id-1] = sample2Id;				
+			}else if(sample2Id < sample1Id){
+				d_distanceHeaps[(numOfSamples-1) * sample1Id + sample2Id] = sample2Id;			
+			}
+		}
+	}
+	 		
 	if(sample1Id >= numOfSamples){
 		return;
 	}
 	
-	for(int i = 0; i < samplePerThread; i++){
-	
-		int sample2Id = threadIdx.x * samplePerThread + i;
-
-		if(sample2Id >= numOfSamples){
-			break;
-		}
-		
-		//put sample Id into heap
-		//prepare heap sort here
-		if(sample2Id > sample1Id){
-			d_distanceHeaps[(numOfSamples-1) * sample1Id + sample2Id-1] = sample2Id;				
-		}else if(sample2Id < sample1Id){
-			d_distanceHeaps[(numOfSamples-1) * sample1Id + sample2Id] = sample2Id;			
-		}
-	}
-	
-	if(sample1Id < minSampleId){
+	if(sample1Id%totalDevice != deviceId){
 		return;
 	}
 	
-	if(sample1Id > maxSampleId){
-		return;
-	}
-
 	/*
 	if(threadIdx.x == 0){
 		printf("sample1=%d, gridDim.x=%d * blockIdx.x=%d + blockIdx.y=%d\n", sample1Id,gridDim.x,blockIdx.x,blockIdx.y);
@@ -288,10 +286,34 @@ __global__ void gpu_heapSortDistance(
 	if(sample1Id == 999){
 		for(int i=0;i<numOfSamples-1;i++){
 			int heapSampleId = d_distanceHeaps[(numOfSamples-1)*sample1Id+i];
-			printf("after sorting: i=%d, sampleId=%d, distance=%d\n", i, heapSampleId, d_distanceMatrix[numOfSamples*sample1Id+heapSampleId]);
+			
+			int distance1;
+			int distance2;
+			if(sample1Id < heapSampleId){
+				distance1= d_distanceMatrix[numOfSamples*sample1Id+heapSampleId];
+			}else{
+				distance2= d_distanceMatrix[numOfSamples*heapSampleId+sample1Id];
+			}	
+			
+			printf("after sorting: i=%d, sampleId=%d, distance1=%d, distance2=%d\n", i, heapSampleId, distance1, distance2);
 		}
-	}
-	*/
+				
+		for(int s=0;s<20;s++){
+			printf("sampleId:%d\n",s);
+			for(int i=0;i<20;i++){
+				printf("%d ",d_distanceMatrix[s*numOfSamples+i]);
+			}
+			printf("\n");
+		}
+	
+		for(int s=numOfSamples-20;s<numOfSamples;s++){
+			printf("sampleId:%d\n",s);
+			for(int i=numOfSamples-20;i<numOfSamples;i++){
+				printf("%d ",d_distanceMatrix[s*numOfSamples+i]);
+			}
+			printf("\n");
+		}
+	}*/
 		
 }
 
@@ -475,6 +497,7 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 		getMemoryInfo("after distanceHeaps cudaMalloc");
 		
 		cudaMalloc(&d_distanceMatrix[dev], numOfSamples * numOfSamples * sizeof(int));
+		cudaMemset(d_distanceMatrix[dev], 0, numOfSamples * numOfSamples * sizeof(int));
 		getMemoryInfo("after distanceMatrix cudaMalloc");
 	}
 	
@@ -523,9 +546,7 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 	}
 	
 	for(int dev=0; dev<numOfDevices; dev++){
-		cudaSetDevice(dev);
-		int minSampleId = dev*samplesPerDevice;
-		int maxSampleId = dev*samplesPerDevice + samplesPerDevice -1;
+		cudaSetDevice(dev);		
 		gpu_generateDisatanceMatrix<<<gridSize, threadSize, 0, stream[dev]>>>(		
 			samplePerThread,
 			numOfSamples,		
@@ -533,8 +554,8 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 			d_packedSampleFeatureMatrix[dev],
 			d_distanceMatrix[dev],
 			d_distanceHeaps[dev],
-			minSampleId,
-			maxSampleId
+			dev,
+			numOfDevices
 			);
 			
 		if(this->isDebugEnabled()){		
@@ -575,27 +596,53 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 		cout<<endl;
 	}	
 	*/
-	
-	for(int dev=0; dev<numOfDevices; dev++){
-		int minSampleId = dev * samplesPerDevice;
-		int maxSampleId = minSampleId + samplesPerDevice -1;		
-		if(maxSampleId > numOfSamples-1){
-			maxSampleId = numOfSamples - 1;
+	/*
+	cout<<endl;
+	cout<<"device 0 Matrix"<<endl;
+	for(int s=0;s<20;s++){
+		cout<<"sampleId:"<<s<<endl;
+		for(int i=0;i<20;i++){
+			cout<<distanceMatrix[0][s*numOfSamples+i]<<" ";
 		}
+		cout<<endl;
+	}
+	
+	for(int s=numOfSamples-20;s<numOfSamples;s++){
+		cout<<"sampleId:"<<s<<endl;
+		for(int i=numOfSamples-20;i<numOfSamples;i++){
+			cout<<distanceMatrix[0][s*numOfSamples+i]<<" ";
+		}
+		cout<<endl;
+	}
+	*/
+	
+	for(int dev=0; dev<numOfDevices; dev++){	
 		
 		if(isDebugEnabled()){
-			cout<<"copy device "<<dev<<" distance matrix from sample:"<<minSampleId<<" to sample:"<<maxSampleId<<endl;
+			cout<<"copy device "<<dev<<" distance matrix";
 		}
 		
-		copy(distanceMatrix[dev] + (minSampleId * numOfSamples), distanceMatrix[dev] + ((maxSampleId +1) * numOfSamples) -1, all_distanceMatrix + (minSampleId * numOfSamples));
+		for(int s=0; s<numOfSamples; s++){
+			if(s%numOfDevices == dev){
+				copy(distanceMatrix[dev] + (s * numOfSamples), distanceMatrix[dev] + (s * numOfSamples) + numOfSamples, all_distanceMatrix + (s * numOfSamples));				
+			}						
+		}
 	}
 	
 	/*
 	cout<<endl;
 	cout<<"all Matrix"<<endl;
-	for(int s=0;s<numOfSamples;s++){
+	for(int s=0;s<20;s++){
 		cout<<"sampleId:"<<s<<endl;
-		for(int i=0;i<numOfSamples;i++){
+		for(int i=0;i<20;i++){
+			cout<<all_distanceMatrix[s*numOfSamples+i]<<" ";
+		}
+		cout<<endl;
+	}
+	
+	for(int s=numOfSamples-20;s<numOfSamples;s++){
+		cout<<"sampleId:"<<s<<endl;
+		for(int i=numOfSamples-20;i<numOfSamples;i++){
 			cout<<all_distanceMatrix[s*numOfSamples+i]<<" ";
 		}
 		cout<<endl;
