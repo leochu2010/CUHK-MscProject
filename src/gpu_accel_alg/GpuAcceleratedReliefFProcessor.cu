@@ -138,6 +138,8 @@ __device__ int gpu_array_value(int *d_array, int *d_value, int id, int count, in
 	int sample2Id = d_array[array_offset * count + id];
 	if(sample1Id < sample2Id){
 		return d_value[sample1Id * (count+1) + sample2Id];
+	}else if(sample1Id == sample2Id){
+		return 0;
 	}else{
 		return d_value[sample2Id * (count+1) + sample1Id];
 	}	
@@ -394,18 +396,26 @@ __global__ void gpu_weightFeatures(
 		return;
 	}
 	
+	/*
+	if(sampleId == 500){
+		for(int i=0;i<kNearest;i++){
+			printf("[b4 sort] k=%d, hitSampleId=%d, missSampleId=%d\n", i, d_kNearestHit[sampleId * kNearest+i], d_kNearestMiss[sampleId * kNearest+i]);
+		}
+	}
+	*/
 	
 	gpu_findKNearest(numOfSamples, sampleId, d_distanceHeaps, d_kNearestHit, d_kNearestMiss, d_labels, kNearest);	
 	
 	/*
-	if(sampleId == 999){
+	if(sampleId == 500){
 		for(int i=0;i<kNearest;i++){
-			printf("k=%d, hitSampleId=%d, missSampleId=%d\n", i, d_kNearestHit[sampleId * kNearest+i], d_kNearestMiss[sampleId * kNearest+i]);
+			printf("[after sort] k=%d, hitSampleId=%d, missSampleId=%d\n", i, d_kNearestHit[sampleId * kNearest+i], d_kNearestMiss[sampleId * kNearest+i]);
 		}
 	}
-	*/
+	*/	
 		
 	for(int k=0; k<kNearest; k++){		
+	
 		int hitSampleId = d_kNearestHit[sampleId * kNearest + k];
 		int missSampleId = d_kNearestMiss[sampleId * kNearest + k];
 		
@@ -429,6 +439,7 @@ __global__ void gpu_weightFeatures(
 					d_weight[sampleId * numOfFeatures + attributeIdx] += score;					
 				}
 			}
+			
 		}
 	}
 	
@@ -506,8 +517,10 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 	for(int dev=0; dev<numOfDevices; dev++){
 		cudaSetDevice(dev);
 		cudaMalloc(&d_kNearestHit[dev], kNearest * numOfSamples*sizeof(int));
+		cudaMemset(d_kNearestHit[dev], -1, kNearest * numOfSamples*sizeof(int));
 		getMemoryInfo("after kNearestHit cudaMalloc");
 		cudaMalloc(&d_kNearestMiss[dev], kNearest * numOfSamples*sizeof(int));
+		cudaMemset(d_kNearestMiss[dev], -1, kNearest * numOfSamples*sizeof(int));
 		getMemoryInfo("after kNearestMiss cudaMalloc");
 	}
 		
@@ -713,6 +726,10 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 		cudaSetDevice(dev);
 		cudaDeviceSynchronize();
 	}
+	
+	if(this->isDebugEnabled()){		
+		cout<<"after device syn1: cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+	}
 		
 	for(int dev=0; dev<numOfDevices; dev++){
 		cudaSetDevice(dev);
@@ -723,6 +740,11 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 		cudaSetDevice(dev);
 		cudaDeviceSynchronize();
 	}
+	
+	if(this->isDebugEnabled()){		
+		cout<<"after device syn2: cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
+	}
+
 	
 	if(isDebugEnabled()){
 		cout<<"generate result"<<endl;
@@ -763,7 +785,7 @@ Result* GpuAcceleratedReliefFProcessor::parallelizeCalculationOnStages(int numOf
 		cudaFree(d_weight[dev]);
 		cudaFree(d_finalWeight[dev]);
 		cudaStreamDestroy(stream[dev]);
-		
+	
 		if(this->isDebugEnabled()){		
 			cout<<"device:"<<dev<<" cudaPeekAtLastError:"<<cudaGetErrorString(cudaPeekAtLastError())<<endl;
 		}
